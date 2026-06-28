@@ -1,0 +1,41 @@
+{
+  "id": "ax206-usbdisplay",
+  "verifiedAt": "2026-06-28",
+  "controller": "AppoTech AX206",
+  "evidence": "docs/device-compatibility.md",
+  "usb": {
+    "vid": "0x1908",
+    "pid": "0x0102",
+    "speed": "full",
+    "manufacturerString": "QTKeJi.Ltd",
+    "productString": "USB-Display",
+    "interface": 0,
+    "endpointOut": "0x01",
+    "endpointIn": "0x81",
+    "maxPacket": 64,
+    "driver": "WinUSB"
+  },
+  "display": {
+    "width": 480,
+    "height": 320,
+    "pixelFormat": "RGB565",
+    "byteOrder": "big-endian",
+    "orientation": "native"
+  },
+  "transport": {
+    "type": "usb-mass-storage-bulk-only",
+    "cbwSignature": "USBC",
+    "cswSignature": "USBS",
+    "tag": "0xDEADBEEF",
+    "vendorOpcode": "0xCD",
+    "getDimensionsCmd": "CD 00 00 00 00 02",
+    "blitCmd": "CD 00 00 00 00 06 12 <x0 y0 x1 y1 LE u16> 00",
+    "partialRegion": true,
+    "initRequired": false
+  },
+  "performance": {
+    "fullFrameFps": 2.8,
+    "usableMBps": 0.86,
+    "note": "USB 1.1 full-speed ceiling; dirty-region required for responsive widgets"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "orbitpanel",
+  "private": true,
+  "version": "0.0.0",
+  "description": "USB LCD dashboard for an AX206 panel (Windows, local-first).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

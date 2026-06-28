@@ -1,0 +1,38 @@
+# Go engine
+/apps/engine/bin/
+*.exe
+*.test
+*.out
+
+# .NET ProbeHost
+/apps/probehost/bin/
+/apps/probehost/obj/
+*.user
+
+# Node / React Studio
+node_modules/
+/apps/studio/dist/
+/apps/studio/.vite/
+*.tsbuildinfo
+
+# Logs / runtime
+logs/
+*.log
+crash_reports/
+
+# Phase 0 capture evidence (large binary, do not load)
+docs/captures/*.pcapng
+docs/captures/*.pcap
+docs/captures/*.bin
+
+# OS / IDE
+.vscode/settings.json
+.idea/
+Thumbs.db
+desktop.ini
+
+# Build / cache
+build/
+dist/
+out/
+.cache/

@@ -1,0 +1,19 @@
+{
+  "name": "@orbitpanel/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/frame-cli.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "frame": "npm run build && node dist/frame-cli.js",
+    "test": "npm run build && node --test dist/driver/ax206.test.js"
+  },
+  "dependencies": {
+    "usb": "^2.14.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
