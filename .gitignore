@@ -22,3 +22,6 @@ Thumbs.db
 desktop.ini
 .idea/
 .vscode/settings.json
+
+# Claude Code local (raw transcripts, auto handoffs) — smart handoffs live in docs/
+.claude/
