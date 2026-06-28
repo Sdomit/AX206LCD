@@ -2,18 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ProbeHost } from './probehost';
 
+const ok = (value: number | null, unit: string) => ({ value, unit, quality: value === null ? 'unavailable' : 'ok', source: 'LHM' });
 const GOOD = JSON.stringify({
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: '2026-06-28T00:00:00.000Z',
-  cpu: {
-    tempC: { value: 55, unit: 'C', quality: 'ok', source: 'LHM' },
-    loadPercent: { value: 10, unit: '%', quality: 'ok', source: 'LHM' },
-  },
-  memory: {
-    usedMiB: { value: 8000, unit: 'MiB', quality: 'ok', source: 'LHM' },
-    totalMiB: { value: 32000, unit: 'MiB', quality: 'ok', source: 'LHM' },
-    loadPercent: { value: 25, unit: '%', quality: 'ok', source: 'LHM' },
-  },
+  cpu: { tempC: ok(55, 'C'), loadPercent: ok(10, '%') },
+  gpu: { tempC: ok(60, 'C'), loadPercent: ok(40, '%') },
+  memory: { usedMiB: ok(8000, 'MiB'), totalMiB: ok(32000, 'MiB'), loadPercent: ok(25, '%') },
+  storage: { tempC: ok(44, 'C'), usedPercent: ok(63, '%') },
+  network: { downBps: ok(1000, 'B/s'), upBps: ok(500, 'B/s') },
 });
 
 test('ingest emits parsed snapshots and ignores garbage', () => {

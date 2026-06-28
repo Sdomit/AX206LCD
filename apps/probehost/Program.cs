@@ -1,11 +1,18 @@
 // ProbeHost: reads PC sensors via LibreHardwareMonitor and emits one JSON-Lines
-// telemetry snapshot per second on stdout. Child process of the engine.
+// telemetry snapshot (schemaVersion 2) per second on stdout. Child process of the engine.
 // null (never zero) for any unavailable metric. Exits when stdin closes (orphan guard).
+// CPU/GPU/disk temps need a ring0 driver — run elevated to populate CPU temp.
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using LibreHardwareMonitor.Hardware;
 
-var computer = new Computer { IsCpuEnabled = true, IsMemoryEnabled = true };
+var computer = new Computer
+{
+    IsCpuEnabled = true,
+    IsGpuEnabled = true,
+    IsMemoryEnabled = true,
+    IsStorageEnabled = true,
+    IsNetworkEnabled = true,
+};
 computer.Open();
 
 // Exit when the parent (engine) closes our stdin.
@@ -22,11 +29,6 @@ _ = Task.Run(() =>
     Environment.Exit(0);
 });
 
-var jsonOpts = new JsonSerializerOptions
-{
-    DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-};
-
 static object Metric(float? value, string unit) => new
 {
     value = value.HasValue ? Math.Round(value.Value, 1) : (double?)null,
@@ -35,6 +37,10 @@ static object Metric(float? value, string unit) => new
     source = "LHM",
 };
 
+// A running CPU/GPU is never <= 0 C; LHM reports 0 when it can't read temps (e.g. no
+// elevation). Treat <= 0 as unavailable (null), never a fake zero.
+static float? PosTemp(float? v) => v is > 0f ? v : null;
+
 while (true)
 {
     foreach (var hw in computer.Hardware)
@@ -42,63 +48,88 @@ while (true)
         hw.Update();
     }
 
-    float? cpuPkgTemp = null, cpuAnyTemp = null, cpuLoad = null;
+    float? cpuTemp = null, cpuTempAny = null, cpuLoad = null;
+    float? gpuTemp = null, gpuTempAny = null, gpuLoad = null;
     float? memUsedGb = null, memAvailGb = null, memLoad = null;
+    float? diskTemp = null, diskUsedPct = null;
+    float? netDown = null, netUp = null;
 
     foreach (var hw in computer.Hardware)
     {
-        if (hw.HardwareType == HardwareType.Cpu)
+        switch (hw.HardwareType)
         {
-            foreach (var s in hw.Sensors)
-            {
-                // A running CPU is never <= 0 C; LHM reports 0 when it can't read temps
-                // (e.g. no elevation). Treat that as unavailable (null), never a fake zero.
-                if (s.SensorType == SensorType.Temperature && s.Value is > 0f)
+            case HardwareType.Cpu:
+                foreach (var s in hw.Sensors)
                 {
-                    cpuAnyTemp ??= s.Value;
-                    if (s.Name.Contains("Package") || s.Name.Contains("Tctl") || s.Name.Contains("Tdie"))
+                    if (s.SensorType == SensorType.Temperature && s.Value is > 0f)
                     {
-                        cpuPkgTemp = s.Value;
+                        cpuTempAny ??= s.Value;
+                        if (s.Name.Contains("Package") || s.Name.Contains("Tctl") || s.Name.Contains("Tdie")) cpuTemp = s.Value;
                     }
+                    else if (s.SensorType == SensorType.Load && s.Name == "CPU Total") cpuLoad = s.Value;
                 }
-                else if (s.SensorType == SensorType.Load && s.Name == "CPU Total")
+                break;
+
+            case HardwareType.GpuNvidia:
+            case HardwareType.GpuAmd:
+            case HardwareType.GpuIntel:
+                foreach (var s in hw.Sensors)
                 {
-                    cpuLoad = s.Value;
+                    if (s.SensorType == SensorType.Temperature && s.Value is > 0f)
+                    {
+                        gpuTempAny ??= s.Value;
+                        if (s.Name.Contains("Core")) gpuTemp = s.Value;
+                    }
+                    else if (s.SensorType == SensorType.Load && (s.Name == "GPU Core" || s.Name == "D3D 3D")) gpuLoad ??= s.Value;
                 }
-            }
-        }
-        else if (hw.HardwareType == HardwareType.Memory)
-        {
-            foreach (var s in hw.Sensors)
-            {
-                if (s.SensorType == SensorType.Data && s.Name == "Memory Used") memUsedGb = s.Value;
-                else if (s.SensorType == SensorType.Data && s.Name == "Memory Available") memAvailGb = s.Value;
-                else if (s.SensorType == SensorType.Load && s.Name == "Memory") memLoad = s.Value;
-            }
+                break;
+
+            case HardwareType.Memory:
+                foreach (var s in hw.Sensors)
+                {
+                    if (s.SensorType == SensorType.Data && s.Name == "Memory Used") memUsedGb = s.Value;
+                    else if (s.SensorType == SensorType.Data && s.Name == "Memory Available") memAvailGb = s.Value;
+                    else if (s.SensorType == SensorType.Load && s.Name == "Memory") memLoad = s.Value;
+                }
+                break;
+
+            case HardwareType.Storage:
+                foreach (var s in hw.Sensors)
+                {
+                    if (s.SensorType == SensorType.Temperature && s.Value is > 0f) diskTemp ??= s.Value;
+                    else if (s.SensorType == SensorType.Load && s.Name == "Used Space") diskUsedPct ??= s.Value;
+                }
+                break;
+
+            case HardwareType.Network:
+                foreach (var s in hw.Sensors)
+                {
+                    if (s.SensorType == SensorType.Throughput && s.Name == "Download Speed") netDown = (netDown ?? 0) + (s.Value ?? 0);
+                    else if (s.SensorType == SensorType.Throughput && s.Name == "Upload Speed") netUp = (netUp ?? 0) + (s.Value ?? 0);
+                }
+                break;
         }
     }
 
-    float? cpuTemp = cpuPkgTemp ?? cpuAnyTemp;
     float? totalGb = (memUsedGb.HasValue && memAvailGb.HasValue) ? memUsedGb + memAvailGb : null;
 
     var snapshot = new
     {
-        schemaVersion = 1,
+        schemaVersion = 2,
         generatedAt = DateTime.UtcNow.ToString("o"),
-        cpu = new
-        {
-            tempC = Metric(cpuTemp, "C"),
-            loadPercent = Metric(cpuLoad, "%"),
-        },
+        cpu = new { tempC = Metric(PosTemp(cpuTemp ?? cpuTempAny), "C"), loadPercent = Metric(cpuLoad, "%") },
+        gpu = new { tempC = Metric(PosTemp(gpuTemp ?? gpuTempAny), "C"), loadPercent = Metric(gpuLoad, "%") },
         memory = new
         {
             usedMiB = Metric(memUsedGb.HasValue ? memUsedGb * 1024f : null, "MiB"),
             totalMiB = Metric(totalGb.HasValue ? totalGb * 1024f : null, "MiB"),
             loadPercent = Metric(memLoad, "%"),
         },
+        storage = new { tempC = Metric(diskTemp, "C"), usedPercent = Metric(diskUsedPct, "%") },
+        network = new { downBps = Metric(netDown, "B/s"), upBps = Metric(netUp, "B/s") },
     };
 
-    Console.WriteLine(JsonSerializer.Serialize(snapshot, jsonOpts));
+    Console.WriteLine(JsonSerializer.Serialize(snapshot));
     Console.Out.Flush();
     Thread.Sleep(1000);
 }

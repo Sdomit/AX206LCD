@@ -61,13 +61,33 @@ export async function openPanel(): Promise<Result<Panel>> {
     await clearHaltSafe(out);
     await clearHaltSafe(inp);
 
-    await outT(out, buildCbw(GET_DIMS, 5, true));
-    const data = await inT(inp, 5);
-    await inT(inp, 13); // CSW
-    const width = data.readUInt16LE(0);
-    const height = data.readUInt16LE(2);
+    // Read dimensions, draining any stale IN data (a leftover CSW from an abrupt prior
+    // exit desyncs the data phase — it surfaces as a bogus size like 21333x21314 = "USBS").
+    let width = 0;
+    let height = 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      inp.timeout = 200;
+      for (let i = 0; i < 4; i++) {
+        try {
+          await inT(inp, 64);
+        } catch {
+          break;
+        }
+      }
+      inp.timeout = 3000;
+      try {
+        await outT(out, buildCbw(GET_DIMS, 5, true));
+        const data = await inT(inp, 5);
+        await inT(inp, 13); // CSW
+        width = data.readUInt16LE(0);
+        height = data.readUInt16LE(2);
+      } catch {
+        width = 0;
+      }
+      if (width > 0 && width <= 2048 && height > 0 && height <= 2048) break;
+    }
     if (!(width > 0 && width <= 2048 && height > 0 && height <= 2048)) {
-      throw new Error(`implausible dimensions ${width}x${height}`);
+      throw new Error(`could not read panel dimensions (got ${width}x${height})`);
     }
 
     const releaseAndClose = (): void => {

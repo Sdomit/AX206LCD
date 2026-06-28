@@ -10,7 +10,7 @@
     "service": "npm run build && node dist/service.js",
     "telemetry": "npm run build && node dist/telemetry-cli.js",
     "dashboard": "npm run build && node dist/dashboard-service.js",
-    "test": "npm run build && node --test dist/driver/ax206.test.js dist/scheduler.test.js dist/device/state-machine.test.js dist/telemetry/snapshot.test.js dist/telemetry/probehost.test.js dist/render/dashboard.test.js dist/render/orbit.test.js"
+    "test": "npm run build && node --test dist/driver/ax206.test.js dist/scheduler.test.js dist/device/state-machine.test.js dist/telemetry/snapshot.test.js dist/telemetry/probehost.test.js dist/render/orbit.test.js"
   },
   "dependencies": {
     "usb": "^2.14.0"

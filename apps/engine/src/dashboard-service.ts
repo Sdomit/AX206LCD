@@ -6,7 +6,7 @@ import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
 import { buildOrbitFrame } from './render/orbit';
 import type { Panel, Result } from './driver/ax206';
-import type { TelemetrySnapshot } from './telemetry/snapshot';
+import type { Metric, TelemetrySnapshot } from './telemetry/snapshot';
 
 const FPS = 2;
 
@@ -34,19 +34,17 @@ function fakePanel(): Panel {
 }
 
 function synthSnapshot(t: number): TelemetrySnapshot {
-  const load = Math.round(50 + 40 * Math.sin(t / 3));
+  const m = (value: number | null, unit: string): Metric<number> => ({ value, unit, quality: value === null ? 'unavailable' : 'ok', source: 'demo' });
+  const cpu = Math.round(50 + 40 * Math.sin(t / 3));
+  const gpu = Math.round(45 + 35 * Math.sin(t / 4 + 1));
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: '',
-    cpu: {
-      tempC: { value: null, quality: 'unavailable', source: 'demo' },
-      loadPercent: { value: load, unit: '%', quality: 'ok', source: 'demo' },
-    },
-    memory: {
-      usedMiB: { value: 8000, unit: 'MiB', quality: 'ok', source: 'demo' },
-      totalMiB: { value: 32000, unit: 'MiB', quality: 'ok', source: 'demo' },
-      loadPercent: { value: 25, unit: '%', quality: 'ok', source: 'demo' },
-    },
+    cpu: { tempC: m(null, 'C'), loadPercent: m(cpu, '%') },
+    gpu: { tempC: m(58, 'C'), loadPercent: m(gpu, '%') },
+    memory: { usedMiB: m(8000, 'MiB'), totalMiB: m(32000, 'MiB'), loadPercent: m(25, '%') },
+    storage: { tempC: m(41, 'C'), usedPercent: m(63, '%') },
+    network: { downBps: m(24_000_000, 'B/s'), upBps: m(3_000_000, 'B/s') },
   };
 }
 

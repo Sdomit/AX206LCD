@@ -3,16 +3,19 @@
 import { ProbeHost } from './telemetry/probehost';
 import type { Metric } from './telemetry/snapshot';
 
-function fmt(m: Metric<number>): string {
-  return m.value === null ? `— (${m.quality})` : `${m.value}${m.unit ?? ''}`;
+function v(m: Metric<number>): string {
+  return m.value === null ? `—(${m.quality})` : `${m.value}${m.unit ?? ''}`;
+}
+function mb(m: Metric<number>): string {
+  return m.value === null ? '—' : `${(m.value / 1e6).toFixed(1)}MB/s`;
 }
 
 function main(): void {
   const ph = new ProbeHost();
   ph.on('snapshot', (s) => {
     console.log(
-      `cpu load ${fmt(s.cpu.loadPercent)}  temp ${fmt(s.cpu.tempC)}  |  ` +
-        `mem ${fmt(s.memory.usedMiB)}/${fmt(s.memory.totalMiB)} (${fmt(s.memory.loadPercent)})`,
+      `cpu ${v(s.cpu.loadPercent)} ${v(s.cpu.tempC)} | gpu ${v(s.gpu.loadPercent)} ${v(s.gpu.tempC)} | ` +
+        `mem ${v(s.memory.loadPercent)} | disk ${v(s.storage.tempC)} | net ↓${mb(s.network.downBps)} ↑${mb(s.network.upBps)}`,
     );
   });
   ph.on('stderr', (d: string) => process.stderr.write(`[probehost] ${d}`));
