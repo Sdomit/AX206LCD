@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "frame": "npm run build && node dist/frame-cli.js",
-    "test": "npm run build && node --test dist/driver/ax206.test.js"
+    "service": "npm run build && node dist/service.js",
+    "test": "npm run build && node --test dist/driver/ax206.test.js dist/scheduler.test.js dist/device/state-machine.test.js"
   },
   "dependencies": {
     "usb": "^2.14.0"
