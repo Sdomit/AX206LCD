@@ -2,7 +2,7 @@
 
 Token-optimized. Tables over prose. Source of truth for scope, sequence, and gates.
 
-> **Status 2026-06-28: Phase 0 COMPLETE.** AX206 panel driven over WinUSB — 480×320 RGB565, native orientation, 2.8 fps full-frame, reconnect OK. Evidence: [device-compatibility.md](device-compatibility.md), `device-profiles/ax206_usbdisplay.json`, `scripts/phase0/`. **Stack DECIDED (Path C, 2026-06-28):** Node/TypeScript engine + React Studio + .NET 9 ProbeHost child, Electron shell, `node-usb` driver — Go/SensorPanel fork dropped. ADR + scores: [architecture.md](architecture.md). **Slice 1A DONE:** TS `node-usb` driver drives the panel (red CSW=0, 3/3 unit tests, demo mode). Next: **1B** — Electron shell + frame scheduler + device state machine.
+> **Status 2026-06-28: Phase 0 COMPLETE.** AX206 panel driven over WinUSB — 480×320 RGB565, native orientation, 2.8 fps full-frame, reconnect OK. Evidence: [device-compatibility.md](device-compatibility.md), `device-profiles/ax206_usbdisplay.json`, `scripts/phase0/`. **Stack DECIDED (Path C, 2026-06-28):** Node/TypeScript engine + React Studio + .NET 9 ProbeHost child, Electron shell, `node-usb` driver — Go/SensorPanel fork dropped. ADR + scores: [architecture.md](architecture.md). **Progress through Slice 2A:** 1A — TS `node-usb` driver drives the panel (red CSW=0); 1B — device state machine + auto-reconnect + frame scheduler + headless service; 2A — .NET ProbeHost streams live CPU/RAM telemetry over JSON Lines, supervised + null-safe (CPU temp reports unavailable, never 0). 15/15 unit tests. Next: **2B** — render live telemetry on the panel (bars), then **1C** Electron tray.
 
 ## Verdict — Approve with changes
 
