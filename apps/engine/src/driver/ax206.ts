@@ -14,6 +14,18 @@ function inT(ep: InEndpoint, len: number): Promise<Buffer> {
   return new Promise((resolve, reject) => ep.transfer(len, (e, d) => (e ? reject(e) : resolve(d as Buffer))));
 }
 
+// Best-effort: clear a stale endpoint halt left by an abrupt prior exit (which otherwise
+// makes the next transfer time out). Resolves regardless of outcome.
+function clearHaltSafe(ep: InEndpoint | OutEndpoint): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      ep.clearHalt(() => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
+
 export interface Rect {
   x0: number;
   y0: number;
@@ -46,6 +58,8 @@ export async function openPanel(): Promise<Result<Panel>> {
     if (!out || !inp) throw new Error('AX206 bulk endpoints 0x01/0x81 not found');
     out.timeout = 10000;
     inp.timeout = 3000;
+    await clearHaltSafe(out);
+    await clearHaltSafe(inp);
 
     await outT(out, buildCbw(GET_DIMS, 5, true));
     const data = await inT(inp, 5);

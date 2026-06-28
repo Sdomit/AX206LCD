@@ -84,7 +84,7 @@ export class DeviceManager extends EventEmitter {
           this.emit('ready', this.panelInfo);
           return;
         }
-        this.emit('error', res.error);
+        this.emit('deviceError', res.error); // not 'error' — reserved event throws if unlistened
         this.dispatch('openFailed'); // Connecting → Reconnecting
         await sleep(this.retryDelayMs);
       }

@@ -4,11 +4,21 @@
 import { DeviceManager } from './device/manager';
 import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
-import { buildTelemetryFrame } from './render/dashboard';
+import { buildOrbitFrame } from './render/orbit';
 import type { Panel, Result } from './driver/ax206';
 import type { TelemetrySnapshot } from './telemetry/snapshot';
 
 const FPS = 2;
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+function clock(): string {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function dur(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+}
 
 function fakePanel(): Panel {
   return {
@@ -48,6 +58,7 @@ function main(): void {
     demo ? { openFn: async (): Promise<Result<Panel>> => ({ ok: true, value: fakePanel() }) } : { retryDelayMs: 1000 },
   );
   mgr.on('state', (s: string) => console.log(`[panel] ${s}`));
+  mgr.on('deviceError', (e: string) => console.log(`[panel] ${e}`));
 
   const ph = demo ? null : new ProbeHost();
   ph?.on('error', (e: string) => console.error(`[probehost] ${e} — build it: dotnet build apps/probehost -c Release`));
@@ -55,6 +66,7 @@ function main(): void {
   mgr.start();
   ph?.start();
 
+  const started = Date.now();
   let tick = 0;
   const getSnapshot = (): { snapshot: TelemetrySnapshot | null; stale: boolean } => {
     if (demo) return { snapshot: synthSnapshot(tick), stale: false };
@@ -68,7 +80,13 @@ function main(): void {
       const info = mgr.panelInfo;
       if (!info) return false;
       const { snapshot, stale } = getSnapshot();
-      return mgr.blit(buildTelemetryFrame(info.width, info.height, snapshot, stale));
+      return mgr.blit(
+        buildOrbitFrame(info.width, info.height, snapshot, stale, {
+          timeStr: clock(),
+          uptimeStr: dur(Date.now() - started),
+          panelState: mgr.currentState,
+        }),
+      );
     },
   });
   sched.start();

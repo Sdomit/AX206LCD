@@ -50,7 +50,7 @@ function main(): void {
   );
   mgr.on('state', (s: string) => console.log(`[state] ${s}`));
   mgr.on('ready', (info: { width: number; height: number }) => console.log(`[ready] ${info.width}x${info.height}`));
-  mgr.on('error', (e: string) => console.log(`[device] ${e}`));
+  mgr.on('deviceError', (e: string) => console.log(`[device] ${e}`));
   mgr.start();
 
   let phase = 0;
