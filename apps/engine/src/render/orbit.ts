@@ -1,5 +1,5 @@
-// OrbitPanel themed frame composer: dark space dashboard with a CPU-load arc gauge and
-// GPU / RAM / NET cards, plus a status strip (panel state, disk temp, uptime).
+// OrbitPanel themed frame composer: dark space dashboard with a CPU-load arc gauge,
+// GPU / RAM / NET cards, and a Claude 5h-usage card (Codex honest-unavailable).
 // Pure (snapshot -> RGB565 buffer), unit-testable. Unavailable metrics render as "--",
 // never a fake zero; stale data paints a red strip at the top.
 import { rgb565 } from '../driver/rgb565';
@@ -21,18 +21,31 @@ const C = {
   star: rgb565(43, 58, 99),
 };
 
-const STARS: [number, number][] = [[300, 28], [205, 60], [448, 152], [60, 70], [392, 256], [150, 250]];
+const STARS: [number, number][] = [[300, 28], [205, 58], [448, 150], [60, 70], [392, 250], [150, 244]];
 
 export interface OrbitContext {
   timeStr: string;
   uptimeStr: string;
   panelState: string;
+  ai?: { claudeUsed: number; claudeLimit: number | null; codexState: string };
 }
 
 export function loadColor(v: number): Px {
   if (v >= 90) return C.red;
   if (v >= 70) return C.amber;
   return C.green;
+}
+
+function stateColor(state: string): Px {
+  if (state === 'Ready') return C.green;
+  if (state === 'Reconnecting' || state === 'Degraded') return C.amber;
+  return C.t2;
+}
+
+export function fmtTokens(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}K`;
+  return String(Math.round(n));
 }
 
 const temp = (m: Metric<number>): string => (m.value === null ? '-- °C' : `${Math.round(m.value)}°C`);
@@ -90,15 +103,26 @@ function arcGauge(buf: Buffer, w: number, h: number, cx: number, cy: number, rOu
   }
 }
 
-function pill(buf: Buffer, w: number, h: number, x: number, y: number, cw: number, dot: Px | null, text: string, right?: string): void {
-  card(buf, w, h, x, y, cw, 34);
-  let tx = x + 12;
-  if (dot) {
-    fillRect(buf, w, h, x + 12, y + 13, 8, 8, dot);
-    tx = x + 28;
+function aiCard(buf: Buffer, w: number, h: number, ai: OrbitContext['ai']): void {
+  card(buf, w, h, 12, 262, 456, 46);
+  drawText(buf, w, h, 24, 270, 'CLAUDE 5H', 2, C.violet);
+  if (!ai) {
+    drawText(buf, w, h, 150, 270, '-- NOT CONFIGURED', 2, C.t2);
+    return;
   }
-  drawText(buf, w, h, tx, y + 11, text, 2, C.t1);
-  if (right) drawText(buf, w, h, x + cw - 12 - textWidth(right, 2), y + 11, right, 2, C.t1);
+  if (ai.claudeLimit && ai.claudeLimit > 0) {
+    const frac = ai.claudeUsed / ai.claudeLimit;
+    const c = frac >= 0.9 ? C.red : frac >= 0.7 ? C.amber : C.green;
+    fillRect(buf, w, h, 150, 270, 300, 10, C.stroke);
+    fillRect(buf, w, h, 150, 270, Math.round(300 * Math.max(0, Math.min(1, frac))), 10, c);
+    drawText(buf, w, h, 24, 290, `${fmtTokens(ai.claudeUsed)} / ${fmtTokens(ai.claudeLimit)}`, 2, C.t1);
+    drawText(buf, w, h, 210, 290, `${Math.round(frac * 100)}%`, 2, c);
+  } else {
+    drawText(buf, w, h, 150, 270, `${fmtTokens(ai.claudeUsed)} TOK`, 2, C.t1);
+    drawText(buf, w, h, 24, 290, 'SET CLAUDE 5H TOKEN LIMIT', 1, C.t2);
+  }
+  const codex = `CODEX ${ai.codexState}`;
+  drawText(buf, w, h, 456 - textWidth(codex, 1), 290, codex, 1, C.t2);
 }
 
 export function buildOrbitFrame(w: number, h: number, snap: TelemetrySnapshot | null, stale: boolean, ctx: OrbitContext): Buffer {
@@ -106,40 +130,39 @@ export function buildOrbitFrame(w: number, h: number, snap: TelemetrySnapshot | 
   fillRect(buf, w, h, 0, 0, w, h, C.bg);
   for (const [sx, sy] of STARS) fillRect(buf, w, h, sx, sy, 1, 1, C.star);
 
-  // Header
-  fillRect(buf, w, h, 16, 15, 7, 7, C.cyan);
+  // Header: state dot + wordmark, clock + uptime
+  fillRect(buf, w, h, 16, 15, 7, 7, stateColor(ctx.panelState));
   drawText(buf, w, h, 30, 14, 'ORBITPANEL', 2, C.t1);
-  drawText(buf, w, h, w - 2 - textWidth(ctx.timeStr, 2), 14, ctx.timeStr, 2, C.t1);
+  drawText(buf, w, h, w - 2 - textWidth(ctx.timeStr, 2), 8, ctx.timeStr, 2, C.t1);
+  const up = `UP ${ctx.uptimeStr}`;
+  drawText(buf, w, h, w - 2 - textWidth(up, 1), 26, up, 1, C.t2);
   fillRect(buf, w, h, 12, 36, w - 24, 1, C.stroke);
 
   // CPU arc gauge (left)
   const cx = 116;
-  const cy = 156;
+  const cy = 152;
   const load = snap?.cpu.loadPercent.value ?? null;
-  drawTextCentered(buf, w, h, cx, 50, 'CPU LOAD', 2, C.cyan);
-  arcGauge(buf, w, h, cx, cy, 80, 64, load === null ? 0 : Math.max(0, Math.min(1, load / 100)), load === null ? C.stroke : loadColor(load), C.stroke);
+  drawTextCentered(buf, w, h, cx, 48, 'CPU LOAD', 2, C.cyan);
+  arcGauge(buf, w, h, cx, cy, 78, 62, load === null ? 0 : Math.max(0, Math.min(1, load / 100)), load === null ? C.stroke : loadColor(load), C.stroke);
   const loadStr = load === null ? '--' : String(Math.round(load));
   drawTextCentered(buf, w, h, cx, cy - 16, loadStr, 4, C.t1);
   if (load !== null) drawText(buf, w, h, Math.round(cx + textWidth(loadStr, 4) / 2 + 4), cy - 14, '%', 2, C.t2);
-  if (snap) drawTextCentered(buf, w, h, cx, cy + 60, temp(snap.cpu.tempC), 2, C.t2);
+  if (snap) drawTextCentered(buf, w, h, cx, cy + 58, temp(snap.cpu.tempC), 2, C.t2);
 
   // Right column cards
   if (snap) {
     const gx = 232;
     const gw = 236;
-    metricCard(buf, w, h, gx, 46, gw, 66, 'GPU', temp(snap.gpu.tempC), pct(snap.gpu.loadPercent), snap.gpu.loadPercent.value === null ? C.t2 : loadColor(snap.gpu.loadPercent.value), snap.gpu.loadPercent.value === null ? null : snap.gpu.loadPercent.value / 100, snap.gpu.loadPercent.value === null ? C.stroke : loadColor(snap.gpu.loadPercent.value));
-    metricCard(buf, w, h, gx, 118, gw, 66, 'RAM', `${gb(snap.memory.usedMiB)} / ${gb(snap.memory.totalMiB)} GB`, pct(snap.memory.loadPercent), C.cyan, snap.memory.loadPercent.value === null ? null : snap.memory.loadPercent.value / 100, C.cyan);
-    metricCard(buf, w, h, gx, 190, gw, 66, 'NET', `DN ${mb(snap.network.downBps)}`, `UP ${mb(snap.network.upBps)}`, C.violet, snap.network.downBps.value === null ? null : snap.network.downBps.value / 125e6, C.green);
+    const gpuV = snap.gpu.loadPercent.value;
+    metricCard(buf, w, h, gx, 46, gw, 64, 'GPU', temp(snap.gpu.tempC), pct(snap.gpu.loadPercent), gpuV === null ? C.t2 : loadColor(gpuV), gpuV === null ? null : gpuV / 100, gpuV === null ? C.stroke : loadColor(gpuV));
+    metricCard(buf, w, h, gx, 116, gw, 64, 'RAM', `${gb(snap.memory.usedMiB)} / ${gb(snap.memory.totalMiB)} GB`, pct(snap.memory.loadPercent), C.cyan, snap.memory.loadPercent.value === null ? null : snap.memory.loadPercent.value / 100, C.cyan);
+    metricCard(buf, w, h, gx, 186, gw, 64, 'NET', `DN ${mb(snap.network.downBps)}`, `UP ${mb(snap.network.upBps)}`, C.violet, snap.network.downBps.value === null ? null : snap.network.downBps.value / 125e6, C.green);
   } else {
-    card(buf, w, h, 232, 46, 236, 210);
-    drawTextCentered(buf, w, h, 350, 145, 'NO DATA', 3, C.t2);
+    card(buf, w, h, 232, 46, 236, 204);
+    drawTextCentered(buf, w, h, 350, 140, 'NO DATA', 3, C.t2);
   }
 
-  // Status strip
-  const stateColor = ctx.panelState === 'Ready' ? C.green : ctx.panelState === 'Reconnecting' || ctx.panelState === 'Degraded' ? C.amber : C.t2;
-  pill(buf, w, h, 12, 264, 150, stateColor, ctx.panelState.toUpperCase());
-  pill(buf, w, h, 170, 264, 140, null, `DISK ${snap ? temp(snap.storage.tempC) : '-- °C'}`);
-  pill(buf, w, h, 318, 264, 150, null, 'UP', ctx.uptimeStr);
+  aiCard(buf, w, h, ctx.ai);
 
   if (stale || !snap) fillRect(buf, w, h, 0, 0, w, 6, C.red);
   return buf;

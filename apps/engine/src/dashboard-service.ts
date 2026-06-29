@@ -5,6 +5,7 @@ import { DeviceManager } from './device/manager';
 import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
 import { buildOrbitFrame } from './render/orbit';
+import { readClaudeUsage } from './ai/claude-usage';
 import type { Panel, Result } from './driver/ax206';
 import type { Metric, TelemetrySnapshot } from './telemetry/snapshot';
 
@@ -65,6 +66,20 @@ function main(): void {
   ph?.start();
 
   const started = Date.now();
+  let claudeUsed = 0;
+  let claudeLimit: number | null = null;
+  const refreshClaude = (): void => {
+    if (demo) {
+      claudeUsed = 1_240_000;
+      claudeLimit = 4_000_000;
+      return;
+    }
+    const u = readClaudeUsage();
+    claudeUsed = u.usedTokens;
+    claudeLimit = u.limit;
+  };
+  refreshClaude();
+  const aiTimer = setInterval(refreshClaude, 15000);
   let tick = 0;
   const getSnapshot = (): { snapshot: TelemetrySnapshot | null; stale: boolean } => {
     if (demo) return { snapshot: synthSnapshot(tick), stale: false };
@@ -83,6 +98,7 @@ function main(): void {
           timeStr: clock(),
           uptimeStr: dur(Date.now() - started),
           panelState: mgr.currentState,
+          ai: { claudeUsed, claudeLimit, codexState: '--' },
         }),
       );
     },
@@ -96,6 +112,7 @@ function main(): void {
 
   const shutdown = (): void => {
     clearInterval(stats);
+    clearInterval(aiTimer);
     sched.stop();
     ph?.stop();
     mgr.stop();

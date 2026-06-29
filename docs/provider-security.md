@@ -29,6 +29,7 @@ Implementation notes:
 - Prefer a local OpenTelemetry path; store daily aggregates in `%APPDATA%\OrbitPanel\metrics\`.
 - **Verify before shipping**: confirm the OTEL exporter Claude Code ships does not emit span attributes containing tool input or source paths when traces are disabled. Read the actual exporter config.
 - Handle telemetry-disabled / unavailable gracefully.
+- **Implemented (Slice 5A):** reads the user's local Claude Code logs (`~/.claude/projects/**/*.jsonl`) — token counts + timestamps ONLY, never prompt/response content — and sums the rolling 5-hour window (`apps/engine/src/ai/claude-usage.ts`). The 5h limit is not officially exposed, so it is user-set via `CLAUDE_5H_TOKEN_LIMIT`; without it the panel shows usage but no progress bar (no fake precision). Local-only, no network.
 
 ## Codex provider — experimental, feature-flagged
 
@@ -42,6 +43,7 @@ Allowed sources only:
 Not allowed: browser dashboard scraping, cookie/token reading, plaintext credential storage, features built on undocumented endpoints.
 
 If exact remaining quota cannot be obtained safely and reliably: show `Unavailable — source not configured`. Do not fake precision. As of 2026-06, no confirmed safe official local source — ship the unavailable stub.
+- **Implemented (Slice 5A):** `readCodexUsage()` returns `unavailable` ("source not configured"); the panel shows `CODEX --`. No local source wired (none safe exists yet).
 
 ## Data Sources page (spec)
 
