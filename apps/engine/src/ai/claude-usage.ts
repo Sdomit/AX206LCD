@@ -9,6 +9,11 @@ import { join } from 'node:path';
 
 export const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 
+// Claude's 5h cap is not exposed in logs, so the bar needs a reference cap. This editable
+// estimate (billable tokens, see aggregate) lets the bar render out of the box; override with
+// CLAUDE_5H_TOKEN_LIMIT to match your plan exactly. Not a measured value — a display reference.
+export const DEFAULT_CLAUDE_5H_LIMIT = 88_000_000;
+
 export interface ClaudeUsage {
   usedTokens: number;
   limit: number | null;
@@ -33,8 +38,10 @@ export function aggregate(lines: Iterable<string>, nowMs: number, windowMs: numb
     if (!Number.isFinite(ts) || ts < cutoff || ts > nowMs) continue;
     const u = o.message?.usage ?? o.usage;
     if (!u) continue;
-    usedTokens +=
-      (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+    // Billable tokens only. cache_read is a cache HIT (≈0.1x cost) and dominates the raw sum
+    // ~10x, which would peg any plan-cap bar — exclude it so the count tracks real consumption.
+    // ponytail: flat exclude, not the exact 0.1x weight Anthropic uses — close enough for a bar.
+    usedTokens += (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0);
     samples++;
   }
   return { usedTokens, samples };
@@ -46,7 +53,7 @@ export function readClaudeUsage(
   const nowMs = opts.nowMs ?? Date.now();
   const windowMs = opts.windowMs ?? FIVE_HOURS_MS;
   const envLimit = process.env.CLAUDE_5H_TOKEN_LIMIT ? Number(process.env.CLAUDE_5H_TOKEN_LIMIT) : NaN;
-  const limit = opts.limit ?? (Number.isFinite(envLimit) ? envLimit : null);
+  const limit = opts.limit ?? (Number.isFinite(envLimit) ? envLimit : DEFAULT_CLAUDE_5H_LIMIT);
   const base = join(opts.homeDir ?? homedir(), '.claude', 'projects');
 
   let usedTokens = 0;

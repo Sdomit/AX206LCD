@@ -49,3 +49,22 @@ test('aggregateCodex sums per-response usage in window, tolerant of field shapes
   assert.equal(r.samples, 3);
   assert.equal(r.usedTokens, 27);
 });
+
+test('aggregateCodex reads the real Codex token_count event shape', () => {
+  const now = Date.parse('2026-06-28T12:00:00Z');
+  const ev = (ts: string, last: number, total: number, pct?: number): string =>
+    JSON.stringify({
+      timestamp: ts,
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: { last_token_usage: { total_tokens: last }, total_token_usage: { total_tokens: total } },
+        ...(pct !== undefined ? { rate_limits: { primary: { used_percent: pct, window_minutes: 300 } } } : {}),
+      },
+    });
+  const lines = [ev('2026-06-28T11:30:00Z', 100, 100, 40), ev('2026-06-28T11:45:00Z', 50, 150, 59)];
+  const r = aggregateCodex(lines, now, FIVE_HOURS_MS);
+  assert.equal(r.samples, 2);
+  assert.equal(r.usedTokens, 150); // sums per-response last_token_usage, NOT cumulative total
+  assert.equal(r.usedPercent, 59); // latest reading wins (not the earlier 40)
+});

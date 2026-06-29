@@ -9,6 +9,7 @@ export const ORBIT_DEFAULT: Profile = {
   width: 480,
   height: 320,
   widgets: [
+    { id: 'backdrop', type: 'backdrop', x: 0, y: 0, w: 480, h: 320, props: {} },
     { id: 'state', type: 'statusDot', x: 16, y: 15, w: 8, h: 8, props: {} },
     { id: 'brand', type: 'label', x: 30, y: 13, w: 200, h: 16, props: { text: 'ORBITPANEL', scale: 2, color: 't1' } },
     { id: 'clock', type: 'clock', x: 300, y: 8, w: 168, h: 16, props: { source: 'time', scale: 2, color: 't1', align: 'right' } },

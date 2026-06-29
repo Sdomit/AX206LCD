@@ -6,8 +6,17 @@ REM  if you want CPU temperature (needs elevation).
 REM ============================================================
 cd /d "%~dp0"
 
-REM Optional: show the Claude 5-hour usage bar by setting your plan's token cap.
-REM Uncomment and set your number:
+REM Self-elevate so CPU temperature works (LibreHardwareMonitor's ring0 driver needs admin).
+REM If UAC is declined, keep running without CPU temp rather than failing.
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+  echo Requesting administrator for CPU temperature...
+  powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs } catch { exit 1 }"
+  if errorlevel 1 (echo Elevation declined - continuing without CPU temperature.) else (exit /b)
+)
+
+REM Claude usage bar uses a default 5h cap of 88M billable tokens. To match your plan
+REM exactly, uncomment and set your number (Codex auto-detects its own % — no setting needed):
 REM set "CLAUDE_5H_TOKEN_LIMIT=88000000"
 
 if not exist "node_modules" (
