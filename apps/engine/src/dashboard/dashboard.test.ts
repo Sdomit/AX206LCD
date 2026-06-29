@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { validateProfile } from './schema';
 import { renderProfile } from './render';
 import { RgbSurface } from './rgb-surface';
-import { fmtTokens } from './bindings';
+import { fmtTokens, fmtRate, formatMetric } from './bindings';
 import { ORBIT_DEFAULT } from './profiles/orbit-default';
 
 const env = {
@@ -35,4 +35,16 @@ test('fmtTokens scales to K/M', () => {
   assert.equal(fmtTokens(950), '950');
   assert.equal(fmtTokens(12_000), '12K');
   assert.equal(fmtTokens(2_400_000), '2.40M');
+});
+
+test('fmtRate auto-scales B/s so light traffic is not rounded to 0.0', () => {
+  assert.equal(fmtRate(0), '0');
+  assert.equal(fmtRate(235_000), '235K'); // would have read "0.2" → "0.0" feel under old MB/s
+  assert.equal(fmtRate(50_000), '50K');
+  assert.equal(fmtRate(24_000_000), '24.0M');
+});
+
+test('rate format reports unavailable network as -- (never a fake 0)', () => {
+  assert.equal(formatMetric(null, 'rate'), '--');
+  assert.equal(formatMetric({ value: null, quality: 'unavailable', source: 'LHM' }, 'rate'), '--');
 });

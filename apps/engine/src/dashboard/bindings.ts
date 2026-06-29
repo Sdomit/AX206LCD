@@ -22,7 +22,16 @@ export function getMetric(snap: TelemetrySnapshot | null, path: string): Metric<
   return g?.[field] ?? null;
 }
 
-export type Format = 'int' | 'temp' | 'pct' | 'gib' | 'mbps';
+export type Format = 'int' | 'temp' | 'pct' | 'gib' | 'rate';
+
+// Auto-scaling byte-rate (input is B/s). Fixed MB/s read 0.0 for all normal traffic, so
+// scale the unit instead: bytes → K → M, bytes implied (matches fmtTokens). e.g. 235 KB/s
+// → "235K", 4.2 MB/s → "4.2M", idle → "0".
+export function fmtRate(bps: number): string {
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)}M`;
+  if (bps >= 1e3) return `${Math.round(bps / 1e3)}K`;
+  return String(Math.round(bps));
+}
 
 export function formatMetric(m: Metric<number> | null, fmt: Format): string {
   if (!m || m.value === null) {
@@ -37,8 +46,8 @@ export function formatMetric(m: Metric<number> | null, fmt: Format): string {
       return `${Math.round(m.value)}%`;
     case 'gib':
       return (m.value / 1024).toFixed(1);
-    case 'mbps':
-      return (m.value / 1e6).toFixed(1);
+    case 'rate':
+      return fmtRate(m.value);
   }
 }
 

@@ -41,6 +41,10 @@ static object Metric(float? value, string unit) => new
 // elevation). Treat <= 0 as unavailable (null), never a fake zero.
 static float? PosTemp(float? v) => v is > 0f ? v : null;
 
+// CPU temp needs a ring0 driver (elevation); GPU temp does not. If we never see a CPU temp,
+// say why once so the panel's "-- °C" isn't a mystery. Engine/CLI surface our stderr.
+var warnedCpuTemp = false;
+
 while (true)
 {
     foreach (var hw in computer.Hardware)
@@ -109,6 +113,13 @@ while (true)
                 }
                 break;
         }
+    }
+
+    if (!warnedCpuTemp && PosTemp(cpuTemp ?? cpuTempAny) is null)
+    {
+        warnedCpuTemp = true;
+        Console.Error.WriteLine(
+            "CPU temperature unavailable — run OrbitPanel as administrator (CPU temp needs a ring0 driver). GPU temp does not require elevation.");
     }
 
     float? totalGb = (memUsedGb.HasValue && memAvailGb.HasValue) ? memUsedGb + memAvailGb : null;

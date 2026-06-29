@@ -68,6 +68,7 @@ function main(): void {
 
   const ph = demo ? null : new ProbeHost();
   ph?.on('error', (e: string) => console.error(`[probehost] ${e} — build it: dotnet build apps/probehost -c Release`));
+  ph?.on('stderr', (d: string) => process.stderr.write(`[probehost] ${d}`));
   ph?.on('exit', (code: number | null) => console.log(`[probehost exited ${code}]`));
   mgr.start();
   ph?.start();

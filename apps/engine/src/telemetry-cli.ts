@@ -1,13 +1,14 @@
 // Prints live telemetry from the ProbeHost child — proves the data pipeline end to end.
 // Usage: npm run telemetry [-- --seconds=N]   (build apps/probehost first)
 import { ProbeHost } from './telemetry/probehost';
+import { fmtRate } from './dashboard/bindings';
 import type { Metric } from './telemetry/snapshot';
 
 function v(m: Metric<number>): string {
   return m.value === null ? `—(${m.quality})` : `${m.value}${m.unit ?? ''}`;
 }
 function mb(m: Metric<number>): string {
-  return m.value === null ? '—' : `${(m.value / 1e6).toFixed(1)}MB/s`;
+  return m.value === null ? '—' : `${fmtRate(m.value)}B/s`;
 }
 
 function main(): void {
