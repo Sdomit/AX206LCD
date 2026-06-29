@@ -22,7 +22,9 @@ export function getMetric(snap: TelemetrySnapshot | null, path: string): Metric<
   return g?.[field] ?? null;
 }
 
-export type Format = 'int' | 'temp' | 'pct' | 'gib' | 'rate';
+// 'mbps' is a deprecated alias for 'rate', kept so saved profiles authored against the
+// old default still render (it now scales the same way, not fixed MB/s).
+export type Format = 'int' | 'temp' | 'pct' | 'gib' | 'rate' | 'mbps';
 
 // Auto-scaling byte-rate (input is B/s). Fixed MB/s read 0.0 for all normal traffic, so
 // scale the unit instead: bytes → K → M, bytes implied. e.g. 235 KB/s → "235K",
@@ -47,7 +49,11 @@ export function formatMetric(m: Metric<number> | null, fmt: Format): string {
     case 'gib':
       return (m.value / 1024).toFixed(1);
     case 'rate':
+    case 'mbps':
       return fmtRate(m.value);
+    default:
+      // Unknown format from a forward-authored or corrupt profile — fail honest, not a crash.
+      return '--';
   }
 }
 

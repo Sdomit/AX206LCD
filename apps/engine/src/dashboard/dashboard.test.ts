@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { validateProfile } from './schema';
 import { renderProfile } from './render';
 import { RgbSurface } from './rgb-surface';
-import { fmtTokens, fmtRate, formatMetric } from './bindings';
+import { fmtTokens, fmtRate, formatMetric, type Format } from './bindings';
 import { ORBIT_DEFAULT } from './profiles/orbit-default';
 
 const env = {
@@ -47,4 +47,11 @@ test('fmtRate auto-scales B/s so light traffic is not rounded to 0.0', () => {
 test('rate format reports unavailable network as -- (never a fake 0)', () => {
   assert.equal(formatMetric(null, 'rate'), '--');
   assert.equal(formatMetric({ value: null, quality: 'unavailable', source: 'LHM' }, 'rate'), '--');
+});
+
+test('deprecated mbps alias still renders (saved profiles), unknown fmt fails honest', () => {
+  const m = { value: 235_000, quality: 'ok' as const, source: 'LHM' };
+  // A profile saved with the old default carries mainFmt: 'mbps' — must not render "undefined".
+  assert.equal(formatMetric(m, 'mbps' as Format), '235K');
+  assert.equal(formatMetric(m, 'bogus' as Format), '--');
 });
