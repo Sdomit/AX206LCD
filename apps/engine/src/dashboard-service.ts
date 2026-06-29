@@ -65,6 +65,7 @@ function main(): void {
   mgr.on('state', (s: string) => {
     console.log(`[panel] ${s}`);
     if (s === 'Ready') prevFrame = null; // resend a full frame after (re)connect
+    sendStatus();
   });
   mgr.on('deviceError', (e: string) => console.log(`[panel] ${e}`));
 
@@ -72,8 +73,6 @@ function main(): void {
   ph?.on('error', (e: string) => console.error(`[probehost] ${e} — build it: dotnet build apps/probehost -c Release`));
   ph?.on('stderr', (d: string) => process.stderr.write(`[probehost] ${d}`));
   ph?.on('exit', (code: number | null) => console.log(`[probehost exited ${code}]`));
-  mgr.start();
-  ph?.start();
 
   const started = Date.now();
   let claude: AiLine = { used: 0, limit: null, available: true };
@@ -125,9 +124,50 @@ function main(): void {
   });
   sched.start();
 
+  // Control channel: when launched as an Electron child (process.send present), accept
+  // pause/resume/status commands and report status back. Pause halts the frame scheduler
+  // but keeps the process and device connection alive; Stop/Restart are handled by the parent.
+  let paused = false;
+  function screenInfo(): { name: string; profile: string; width: number; height: number } | null {
+    const info = mgr.panelInfo;
+    return info ? { name: 'AX206 USB Display', profile: ORBIT_DEFAULT.name, width: info.width, height: info.height } : null;
+  }
+  function sendStatus(): void {
+    process.send?.({
+      type: 'status',
+      alive: true,
+      paused,
+      device: mgr.currentState,
+      screen: screenInfo(),
+      fps: FPS,
+      rendered: sched.rendered,
+      skipped: sched.skipped,
+      failed: sched.failed,
+    });
+  }
+  process.on('message', (m: { cmd?: string }) => {
+    if (!m || typeof m !== 'object') return;
+    if (m.cmd === 'pause' && !paused) {
+      paused = true;
+      sched.stop();
+      sendStatus();
+    } else if (m.cmd === 'resume' && paused) {
+      paused = false;
+      sched.start();
+      sendStatus();
+    } else if (m.cmd === 'status') {
+      sendStatus();
+    }
+  });
+
+  mgr.start();
+  ph?.start();
+  sendStatus();
+
   const stats = setInterval(() => {
     const cpu = getSnapshot().snapshot?.cpu.loadPercent.value;
     console.log(`[frames] rendered=${sched.rendered} skipped=${sched.skipped} failed=${sched.failed} cpu=${cpu ?? '—'}%`);
+    sendStatus();
   }, 3000);
 
   const shutdown = (): void => {
