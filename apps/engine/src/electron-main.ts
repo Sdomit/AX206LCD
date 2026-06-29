@@ -3,10 +3,40 @@
 // its Node ABI — no electron-rebuild needed. The child gets an IPC channel: the shell sends
 // pause/resume/status, the engine reports status back, which the shell relays to the window.
 import { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL_HTML } from './control-ui';
+
+// Run elevated by default so ProbeHost can read CPU temperature (LibreHardwareMonitor's ring0
+// driver needs admin). Covers every launch path — .bat, "Start at login", and `npm run tray` —
+// not just the .bat. `--elevated` breaks any relaunch loop; declining UAC falls through to a
+// normal run (everything works except CPU temp). Windows only.
+function isAdminWin(): boolean {
+  try {
+    execFileSync('net', ['session'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function relaunchElevated(): boolean {
+  const q = (s: string): string => `'${s.replace(/'/g, "''")}'`; // PowerShell single-quote escape
+  const args = [...process.argv.slice(1), '--elevated'];
+  const cmd =
+    `Start-Process -FilePath ${q(process.execPath)} ` +
+    `-ArgumentList ${args.map(q).join(',')} ` +
+    `-WorkingDirectory ${q(process.cwd())} -Verb RunAs`;
+  try {
+    execFileSync('powershell', ['-NoProfile', '-Command', cmd], { stdio: 'ignore' });
+    return true; // elevated instance launched — this one should exit
+  } catch {
+    return false; // UAC declined or failed — keep running without elevation
+  }
+}
+if (process.platform === 'win32' && !process.argv.includes('--elevated') && !isAdminWin() && relaunchElevated()) {
+  process.exit(0);
+}
 
 let tray: Tray | null = null;
 let win: BrowserWindow | null = null;
