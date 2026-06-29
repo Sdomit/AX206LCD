@@ -2,7 +2,7 @@
 // and emits state changes. A blit failure degrades and triggers reconnect — a dropped
 // device must never crash the caller.
 import { EventEmitter } from 'node:events';
-import { openPanel, type Panel, type Result } from '../driver/ax206';
+import { openPanel, type Panel, type Rect, type Result } from '../driver/ax206';
 import { nextState, type DeviceState, type DeviceEvent } from './state-machine';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -49,12 +49,12 @@ export class DeviceManager extends EventEmitter {
   }
 
   // Returns true only on a confirmed successful blit (CSW status 0).
-  async blit(pixels: Buffer): Promise<boolean> {
+  async blit(pixels: Buffer, rect?: Rect): Promise<boolean> {
     if (!this.panel) {
       void this.ensureConnected();
       return false;
     }
-    const r = await this.panel.blit(pixels);
+    const r = await this.panel.blit(pixels, rect);
     if (r.ok && r.value === 0) return true;
     this.dispatch('ioError'); // Ready → Degraded
     this.closePanel();

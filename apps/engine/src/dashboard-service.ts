@@ -4,7 +4,8 @@
 import { DeviceManager } from './device/manager';
 import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
-import { RgbSurface } from './dashboard/rgb-surface';
+import { SupersampleSurface } from './dashboard/supersample-surface';
+import { downsampleToRgb565, changedRect, extractRect } from './dashboard/quality';
 import { renderProfile } from './dashboard/render';
 import { ORBIT_DEFAULT } from './dashboard/profiles/orbit-default';
 import { readClaudeUsage } from './ai/claude-usage';
@@ -58,7 +59,11 @@ function main(): void {
   const mgr = new DeviceManager(
     demo ? { openFn: async (): Promise<Result<Panel>> => ({ ok: true, value: fakePanel() }) } : { retryDelayMs: 1000 },
   );
-  mgr.on('state', (s: string) => console.log(`[panel] ${s}`));
+  let prevFrame: Buffer | null = null;
+  mgr.on('state', (s: string) => {
+    console.log(`[panel] ${s}`);
+    if (s === 'Ready') prevFrame = null; // resend a full frame after (re)connect
+  });
   mgr.on('deviceError', (e: string) => console.log(`[panel] ${e}`));
 
   const ph = demo ? null : new ProbeHost();
@@ -95,8 +100,8 @@ function main(): void {
       const info = mgr.panelInfo;
       if (!info) return false;
       const { snapshot, stale } = getSnapshot();
-      const surface = new RgbSurface(info.width, info.height);
-      renderProfile(surface, ORBIT_DEFAULT, {
+      const ss = new SupersampleSurface(info.width, info.height, 2);
+      renderProfile(ss, ORBIT_DEFAULT, {
         snapshot,
         stale,
         ctx: {
@@ -106,7 +111,12 @@ function main(): void {
           ai: { claudeUsed, claudeLimit, codexState: '--' },
         },
       });
-      return mgr.blit(surface.buf);
+      const frame = Buffer.allocUnsafe(info.width * info.height * 2);
+      downsampleToRgb565(ss, frame);
+      const rect = changedRect(prevFrame, frame, info.width, info.height);
+      prevFrame = frame;
+      if (!rect) return true; // nothing changed — skip the USB transfer
+      return mgr.blit(extractRect(frame, info.width, rect), rect);
     },
   });
   sched.start();

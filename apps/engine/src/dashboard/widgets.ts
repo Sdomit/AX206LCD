@@ -59,8 +59,8 @@ export const WIDGETS: Record<string, WidgetDraw> = {
     if (p.label) drawTextCentered(s, cx, wdg.y, str(p.label), 2, COLORS.cyan);
     arcGauge(s, cx, cy, rOut, rIn, v === null ? 0 : Math.max(0, Math.min(1, v / 100)), v === null ? COLORS.stroke : loadColor(v), COLORS.stroke);
     const big = v === null ? '--' : String(Math.round(v));
-    drawTextCentered(s, cx, cy - 16, big, 4, COLORS.t1);
-    if (v !== null) drawText(s, Math.round(cx + textWidth(big, 4) / 2 + 4), cy - 14, '%', 2, COLORS.t2);
+    drawTextCentered(s, cx, cy - 18, big, 5, COLORS.t1);
+    if (v !== null) drawText(s, Math.round(cx + textWidth(big, 5) / 2 + 4), cy - 14, '%', 2, COLORS.t2);
     if (p.tempBinding) drawTextCentered(s, cx, cy + 44, formatMetric(getMetric(env.snapshot, str(p.tempBinding)), 'temp'), 2, COLORS.t2);
   },
 
