@@ -4,7 +4,9 @@
 import { DeviceManager } from './device/manager';
 import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
-import { buildOrbitFrame } from './render/orbit';
+import { RgbSurface } from './dashboard/rgb-surface';
+import { renderProfile } from './dashboard/render';
+import { ORBIT_DEFAULT } from './dashboard/profiles/orbit-default';
 import { readClaudeUsage } from './ai/claude-usage';
 import type { Panel, Result } from './driver/ax206';
 import type { Metric, TelemetrySnapshot } from './telemetry/snapshot';
@@ -93,14 +95,18 @@ function main(): void {
       const info = mgr.panelInfo;
       if (!info) return false;
       const { snapshot, stale } = getSnapshot();
-      return mgr.blit(
-        buildOrbitFrame(info.width, info.height, snapshot, stale, {
+      const surface = new RgbSurface(info.width, info.height);
+      renderProfile(surface, ORBIT_DEFAULT, {
+        snapshot,
+        stale,
+        ctx: {
           timeStr: clock(),
           uptimeStr: dur(Date.now() - started),
           panelState: mgr.currentState,
           ai: { claudeUsed, claudeLimit, codexState: '--' },
-        }),
-      );
+        },
+      });
+      return mgr.blit(surface.buf);
     },
   });
   sched.start();

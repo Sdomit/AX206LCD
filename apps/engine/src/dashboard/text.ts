@@ -1,7 +1,6 @@
-// Minimal 5x7 bitmap font for the panel (uppercase + digits + a few symbols).
-// Glyphs authored as ASCII art so they are eyeball-verifiable. drawText scales by
-// integer factor and advances 6*scale per char (5 wide + 1 gap).
-import { fillRect, type Px } from './pixel';
+// Shared 5x7 bitmap font, rendered through a Surface so engine + Studio match exactly.
+import type { RGB } from './colors';
+import type { Surface } from './surface';
 
 const GLYPHS: Record<string, string[]> = {
   ' ': ['.....', '.....', '.....', '.....', '.....', '.....', '.....'],
@@ -21,22 +20,27 @@ const GLYPHS: Record<string, string[]> = {
   C: ['.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'],
   D: ['###..', '#..#.', '#...#', '#...#', '#...#', '#..#.', '###..'],
   E: ['#####', '#....', '#....', '###..', '#....', '#....', '#####'],
+  F: ['#####', '#....', '#....', '###..', '#....', '#....', '#....'],
   G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
   H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
   I: ['.###.', '..#..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  J: ['..###', '...#.', '...#.', '...#.', '#..#.', '#..#.', '.##..'],
+  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
   L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
   M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
   N: ['#...#', '##..#', '##..#', '#.#.#', '#..##', '#...#', '#...#'],
   O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
   P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
   R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
   S: ['.###.', '#...#', '#....', '.###.', '....#', '#...#', '.###.'],
   T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
   U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+  W: ['#...#', '#...#', '#...#', '#.#.#', '#.#.#', '##.##', '#...#'],
+  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
   Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
   Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
-  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
-  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
   '%': ['##..#', '##.#.', '...#.', '..#..', '.#...', '.#.##', '#..##'],
   ':': ['.....', '..#..', '..#..', '.....', '..#..', '..#..', '.....'],
   '.': ['.....', '.....', '.....', '.....', '.....', '.##..', '.##..'],
@@ -57,20 +61,24 @@ export function textWidth(text: string, scale: number): number {
   return text.length * (CW + GAP) * scale - GAP * scale;
 }
 
-export function drawText(buf: Buffer, w: number, h: number, x: number, y: number, text: string, scale: number, color: Px): void {
+export function drawText(s: Surface, x: number, y: number, text: string, scale: number, color: RGB): void {
   let cx = x;
   for (const ch of text.toUpperCase()) {
     const g = glyph(ch);
     for (let r = 0; r < g.length; r++) {
       const row = g[r];
       for (let c = 0; c < row.length; c++) {
-        if (row[c] === '#') fillRect(buf, w, h, cx + c * scale, y + r * scale, scale, scale, color);
+        if (row[c] === '#') s.fillRect(cx + c * scale, y + r * scale, scale, scale, color);
       }
     }
     cx += (CW + GAP) * scale;
   }
 }
 
-export function drawTextCentered(buf: Buffer, w: number, h: number, cx: number, y: number, text: string, scale: number, color: Px): void {
-  drawText(buf, w, h, Math.round(cx - textWidth(text, scale) / 2), y, text, scale, color);
+export function drawTextCentered(s: Surface, cx: number, y: number, text: string, scale: number, color: RGB): void {
+  drawText(s, Math.round(cx - textWidth(text, scale) / 2), y, text, scale, color);
+}
+
+export function drawTextRight(s: Surface, rx: number, y: number, text: string, scale: number, color: RGB): void {
+  drawText(s, Math.round(rx - textWidth(text, scale)), y, text, scale, color);
 }
