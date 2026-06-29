@@ -25,8 +25,8 @@ export function getMetric(snap: TelemetrySnapshot | null, path: string): Metric<
 export type Format = 'int' | 'temp' | 'pct' | 'gib' | 'rate';
 
 // Auto-scaling byte-rate (input is B/s). Fixed MB/s read 0.0 for all normal traffic, so
-// scale the unit instead: bytes → K → M, bytes implied (matches fmtTokens). e.g. 235 KB/s
-// → "235K", 4.2 MB/s → "4.2M", idle → "0".
+// scale the unit instead: bytes → K → M, bytes implied. e.g. 235 KB/s → "235K",
+// 4.2 MB/s → "4.2M", idle → "0".
 export function fmtRate(bps: number): string {
   if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)}M`;
   if (bps >= 1e3) return `${Math.round(bps / 1e3)}K`;

@@ -7,7 +7,7 @@ import type { Metric } from './telemetry/snapshot';
 function v(m: Metric<number>): string {
   return m.value === null ? `—(${m.quality})` : `${m.value}${m.unit ?? ''}`;
 }
-function mb(m: Metric<number>): string {
+function rate(m: Metric<number>): string {
   return m.value === null ? '—' : `${fmtRate(m.value)}B/s`;
 }
 
@@ -16,7 +16,7 @@ function main(): void {
   ph.on('snapshot', (s) => {
     console.log(
       `cpu ${v(s.cpu.loadPercent)} ${v(s.cpu.tempC)} | gpu ${v(s.gpu.loadPercent)} ${v(s.gpu.tempC)} | ` +
-        `mem ${v(s.memory.loadPercent)} | disk ${v(s.storage.tempC)} | net ↓${mb(s.network.downBps)} ↑${mb(s.network.upBps)}`,
+        `mem ${v(s.memory.loadPercent)} | disk ${v(s.storage.tempC)} | net ↓${rate(s.network.downBps)} ↑${rate(s.network.upBps)}`,
     );
   });
   ph.on('stderr', (d: string) => process.stderr.write(`[probehost] ${d}`));
