@@ -1,13 +1,14 @@
 // Integrated service: ProbeHost telemetry -> engine -> panel. Renders live CPU-load
 // and RAM bars on the real device, auto-reconnecting the panel and supervising ProbeHost.
 // Usage: npm run dashboard [-- --demo] [-- --seconds=N]
+import { watch } from 'node:fs';
 import { DeviceManager } from './device/manager';
 import { ProbeHost } from './telemetry/probehost';
 import { FrameScheduler } from './scheduler';
 import { SupersampleSurface } from './dashboard/supersample-surface';
 import { downsampleToRgb565, changedRect, extractRect } from './dashboard/quality';
 import { renderProfile } from './dashboard/render';
-import { ORBIT_DEFAULT } from './dashboard/profiles/orbit-default';
+import { loadActiveProfile, configDir, PROFILE_FILE } from './config';
 import { readClaudeUsage } from './ai/claude-usage';
 import { readCodexUsage } from './ai/codex-usage';
 import type { AiLine } from './dashboard/bindings';
@@ -62,6 +63,28 @@ function main(): void {
     demo ? { openFn: async (): Promise<Result<Panel>> => ({ ok: true, value: fakePanel() }) } : { retryDelayMs: 1000 },
   );
   let prevFrame: Buffer | null = null;
+
+  // Active profile: rendered from %APPDATA%\OrbitPanel\profile.json so Studio-built dashboards
+  // reach the panel; missing/invalid -> ORBIT_DEFAULT. Hot-reload when the file changes (drop a
+  // new export in and the panel updates), debounced since fs.watch can fire several times.
+  let activeProfile = loadActiveProfile();
+  console.log(`[config] profile: ${activeProfile.name} (${configDir()})`);
+  let reloadTimer: NodeJS.Timeout | null = null;
+  let watcher: ReturnType<typeof watch> | null = null;
+  try {
+    watcher = watch(configDir(), (_e, filename) => {
+      if (filename !== PROFILE_FILE) return;
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        activeProfile = loadActiveProfile();
+        prevFrame = null; // force a full redraw with the new layout
+        console.log(`[config] reloaded profile: ${activeProfile.name}`);
+      }, 200);
+    });
+  } catch {
+    // watch unsupported on this fs — profile is still loaded once at startup
+  }
+
   mgr.on('state', (s: string) => {
     console.log(`[panel] ${s}`);
     if (s === 'Ready') prevFrame = null; // resend a full frame after (re)connect
@@ -104,7 +127,7 @@ function main(): void {
       if (!info) return false;
       const { snapshot, stale } = getSnapshot();
       const ss = new SupersampleSurface(info.width, info.height, 2);
-      renderProfile(ss, ORBIT_DEFAULT, {
+      renderProfile(ss, activeProfile, {
         snapshot,
         stale,
         ctx: {
@@ -130,7 +153,7 @@ function main(): void {
   let paused = false;
   function screenInfo(): { name: string; profile: string; width: number; height: number } | null {
     const info = mgr.panelInfo;
-    return info ? { name: 'AX206 USB Display', profile: ORBIT_DEFAULT.name, width: info.width, height: info.height } : null;
+    return info ? { name: 'AX206 USB Display', profile: activeProfile.name, width: info.width, height: info.height } : null;
   }
   function sendStatus(): void {
     process.send?.({
@@ -173,6 +196,8 @@ function main(): void {
   const shutdown = (): void => {
     clearInterval(stats);
     clearInterval(aiTimer);
+    if (reloadTimer) clearTimeout(reloadTimer);
+    watcher?.close();
     sched.stop();
     ph?.stop();
     mgr.stop();

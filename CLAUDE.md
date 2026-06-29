@@ -4,7 +4,7 @@
 Windows desktop app. USB LCD dashboard (panel believed AX206 controller). Local-first.
 
 ## Status
-Phase 0 COMPLETE — AX206 panel driven over WinUSB (480×320 RGB565, native, 2.8 fps, reconnect OK). Stack decided: **Path C** (TS engine + React Studio + .NET ProbeHost, Electron). Next: Slice 1A. See [docs/plan.md](docs/plan.md).
+Phases 0–5 substantially built: AX206 driver (node-usb, 480×320 RGB565), state machine + reconnect, ProbeHost telemetry (CPU/GPU/RAM/disk/net), schema-driven widgets + React Studio, dirty-region + supersample AA, Claude/Codex usage bars, tray + control window. Stack: **Path C** (TS engine + React Studio + .NET ProbeHost, Electron). Recent: admin-by-default elevation (CPU temp), depth theme, engine loads active profile from `%APPDATA%\OrbitPanel\profile.json` (Studio→panel pipeline). Next: Phase 6 hardening — CI (typecheck/test/build), structured logger + rotation, installer/portable ZIP. See [docs/plan.md](docs/plan.md).
 
 ## Stack
 - `apps/engine` — Node/TypeScript, Electron. Device lifecycle, frame scheduler, RGB565, dirty-region, WebSocket API, tray. `node-usb` driver (verified AX206 profile).
