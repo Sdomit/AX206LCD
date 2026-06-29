@@ -5,7 +5,7 @@ import { COLORS, loadColor, type ColorName, type RGB } from './colors';
 import type { Surface } from './surface';
 import { drawText, drawTextCentered, drawTextRight, textWidth } from './text';
 import { strokeRect, bar, arcGauge } from './draw';
-import { getMetric, formatMetric, fmtTokens, type Format, type RenderEnv } from './bindings';
+import { getMetric, formatMetric, fmtTokens, type Format, type RenderEnv, type AiLine } from './bindings';
 import type { Widget } from './schema';
 
 const col = (v: unknown, fallback: RGB): RGB => (typeof v === 'string' && v in COLORS ? COLORS[v as ColorName] : fallback);
@@ -16,6 +16,28 @@ const fmtOf = (v: unknown, d: Format): Format => (typeof v === 'string' ? (v as 
 function cardBg(s: Surface, x: number, y: number, w: number, h: number): void {
   s.fillRect(x, y, w, h, COLORS.surf);
   strokeRect(s, x, y, w, h, COLORS.stroke);
+}
+
+// Draw one AI provider's usage line: "<LABEL> <count> TOK" on the left, and on the right a
+// progress bar + percent when a limit is configured. Honest states: unavailable → "--";
+// no limit → count only, no bar (no fake precision). Shared by Claude and Codex.
+function aiLine(s: Surface, x: number, y: number, w: number, label: string, labelColor: RGB, line: AiLine): void {
+  drawText(s, x, y, label, 2, labelColor);
+  const vx = x + 84; // fixed value column so both providers' counts line up under each other
+  if (!line.available) {
+    drawText(s, vx, y, '--', 2, COLORS.t2);
+    if (line.state) drawTextRight(s, x + w, y + 3, line.state, 1, COLORS.t2);
+    return;
+  }
+  drawText(s, vx, y, `${fmtTokens(line.used)} TOK`, 2, COLORS.t1);
+  if (line.limit && line.limit > 0) {
+    const frac = line.used / line.limit;
+    const c = frac >= 0.9 ? COLORS.red : frac >= 0.7 ? COLORS.amber : COLORS.green;
+    bar(s, x + w - 184, y + 4, 130, 8, frac, COLORS.stroke, c);
+    drawTextRight(s, x + w, y, `${Math.round(frac * 100)}%`, 2, c);
+  } else {
+    drawTextRight(s, x + w, y + 3, 'SET LIMIT', 1, COLORS.t2);
+  }
 }
 
 export type WidgetDraw = (s: Surface, wdg: Widget, env: RenderEnv) => void;
@@ -103,22 +125,13 @@ export const WIDGETS: Record<string, WidgetDraw> = {
   aiUsage(s, wdg, env) {
     const { x, y } = wdg;
     cardBg(s, x, y, wdg.w, wdg.h);
-    drawText(s, x + 12, y + 8, 'CLAUDE 5H', 2, COLORS.violet);
     const ai = env.ctx.ai;
     if (!ai) {
-      drawText(s, x + 138, y + 8, '-- NOT CONFIGURED', 2, COLORS.t2);
+      drawText(s, x + 12, y + 8, '-- NOT CONFIGURED', 2, COLORS.t2);
       return;
     }
-    if (ai.claudeLimit && ai.claudeLimit > 0) {
-      const frac = ai.claudeUsed / ai.claudeLimit;
-      const c = frac >= 0.9 ? COLORS.red : frac >= 0.7 ? COLORS.amber : COLORS.green;
-      bar(s, x + 138, y + 8, 300, 10, frac, COLORS.stroke, c);
-      drawText(s, x + 12, y + 28, `${fmtTokens(ai.claudeUsed)} / ${fmtTokens(ai.claudeLimit)}`, 2, COLORS.t1);
-      drawText(s, x + 198, y + 28, `${Math.round(frac * 100)}%`, 2, c);
-    } else {
-      drawText(s, x + 138, y + 8, `${fmtTokens(ai.claudeUsed)} TOK`, 2, COLORS.t1);
-      drawText(s, x + 12, y + 28, 'SET CLAUDE 5H TOKEN LIMIT', 1, COLORS.t2);
-    }
-    drawTextRight(s, x + wdg.w - 12, y + 28, `CODEX ${ai.codexState}`, 1, COLORS.t2);
+    // Two stacked usage lines, drawn by one shared helper so both providers match exactly.
+    aiLine(s, x + 12, y + 6, wdg.w - 24, 'CLAUDE', COLORS.violet, ai.claude);
+    aiLine(s, x + 12, y + 26, wdg.w - 24, 'CODEX', COLORS.cyan, ai.codex);
   },
 };

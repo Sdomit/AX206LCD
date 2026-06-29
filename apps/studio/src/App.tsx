@@ -141,7 +141,10 @@ export default function App(): JSX.Element {
           timeStr: new Date().toTimeString().slice(0, 8),
           uptimeStr: new Date(Date.now() - mounted.current).toISOString().slice(11, 19),
           panelState: 'Ready',
-          ai: { claudeUsed: 1_240_000, claudeLimit: claudeLimit || null, codexState: '--' },
+          ai: {
+            claude: { used: 1_240_000, limit: claudeLimit || null, available: true },
+            codex: { used: 320_000, limit: 1_000_000, available: true },
+          },
         },
       });
       if (selected) {

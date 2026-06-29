@@ -2,11 +2,20 @@
 // formatting. Shared by widgets so engine + Studio format identically.
 import type { Metric, TelemetrySnapshot } from '../telemetry/snapshot';
 
+// One AI provider's usage line. `available` false → render an honest "--" (never zero);
+// `limit` null → show the count without a progress bar (no fake precision).
+export interface AiLine {
+  used: number;
+  limit: number | null;
+  available: boolean;
+  state?: string;
+}
+
 export interface RenderCtx {
   timeStr: string;
   uptimeStr: string;
   panelState: string;
-  ai?: { claudeUsed: number; claudeLimit: number | null; codexState: string };
+  ai?: { claude: AiLine; codex: AiLine };
 }
 
 export interface RenderEnv {

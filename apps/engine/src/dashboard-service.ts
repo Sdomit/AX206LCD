@@ -9,6 +9,8 @@ import { downsampleToRgb565, changedRect, extractRect } from './dashboard/qualit
 import { renderProfile } from './dashboard/render';
 import { ORBIT_DEFAULT } from './dashboard/profiles/orbit-default';
 import { readClaudeUsage } from './ai/claude-usage';
+import { readCodexUsage } from './ai/codex-usage';
+import type { AiLine } from './dashboard/bindings';
 import type { Panel, Result } from './driver/ax206';
 import type { Metric, TelemetrySnapshot } from './telemetry/snapshot';
 
@@ -74,20 +76,21 @@ function main(): void {
   ph?.start();
 
   const started = Date.now();
-  let claudeUsed = 0;
-  let claudeLimit: number | null = null;
-  const refreshClaude = (): void => {
+  let claude: AiLine = { used: 0, limit: null, available: true };
+  let codex: AiLine = { used: 0, limit: null, available: false, state: 'source not configured' };
+  const refreshAi = (): void => {
     if (demo) {
-      claudeUsed = 1_240_000;
-      claudeLimit = 4_000_000;
+      claude = { used: 1_240_000, limit: 4_000_000, available: true };
+      codex = { used: 320_000, limit: 1_000_000, available: true };
       return;
     }
-    const u = readClaudeUsage();
-    claudeUsed = u.usedTokens;
-    claudeLimit = u.limit;
+    const cu = readClaudeUsage();
+    claude = { used: cu.usedTokens, limit: cu.limit, available: true };
+    const xu = readCodexUsage();
+    codex = { used: xu.usedTokens, limit: xu.limit, available: xu.available, state: xu.state };
   };
-  refreshClaude();
-  const aiTimer = setInterval(refreshClaude, 15000);
+  refreshAi();
+  const aiTimer = setInterval(refreshAi, 15000);
   let tick = 0;
   const getSnapshot = (): { snapshot: TelemetrySnapshot | null; stale: boolean } => {
     if (demo) return { snapshot: synthSnapshot(tick), stale: false };
@@ -109,7 +112,7 @@ function main(): void {
           timeStr: clock(),
           uptimeStr: dur(Date.now() - started),
           panelState: mgr.currentState,
-          ai: { claudeUsed, claudeLimit, codexState: '--' },
+          ai: { claude, codex },
         },
       });
       const frame = Buffer.allocUnsafe(info.width * info.height * 2);

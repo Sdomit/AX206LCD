@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { aggregate, FIVE_HOURS_MS } from './claude-usage';
-import { readCodexUsage } from './codex-usage';
+import { readCodexUsage, aggregateCodex } from './codex-usage';
 
 const line = (tsIso: string, out: number): string =>
   JSON.stringify({
@@ -28,6 +28,24 @@ test('aggregate ignores future-dated lines', () => {
   assert.equal(r.samples, 0);
 });
 
-test('codex usage is unavailable (no safe local source)', () => {
-  assert.equal(readCodexUsage().available, false);
+test('codex usage is unavailable when no local logs exist', () => {
+  // Point at a homeDir with no ~/.codex/sessions — must report unavailable, never a fake 0.
+  const u = readCodexUsage({ homeDir: '/nonexistent-home-for-test' });
+  assert.equal(u.available, false);
+  assert.equal(u.usedTokens, 0);
+});
+
+test('aggregateCodex sums per-response usage in window, tolerant of field shapes', () => {
+  const now = Date.parse('2026-06-28T12:00:00Z');
+  const lines = [
+    JSON.stringify({ timestamp: '2026-06-28T11:30:00Z', usage: { input_tokens: 10, output_tokens: 5 } }), // 15
+    JSON.stringify({ timestamp: '2026-06-28T11:40:00Z', response: { usage: { total_tokens: 7 } } }), // 7
+    JSON.stringify({ timestamp: '2026-06-28T11:45:00Z', message: { usage: { prompt_tokens: 3, completion_tokens: 2 } } }), // 5
+    JSON.stringify({ timestamp: '2026-06-28T05:00:00Z', usage: { input_tokens: 999, output_tokens: 1 } }), // 7h old -> excluded
+    JSON.stringify({ timestamp: '2026-06-28T11:50:00Z', message: {} }), // no usage -> skipped
+    'not json',
+  ];
+  const r = aggregateCodex(lines, now, FIVE_HOURS_MS);
+  assert.equal(r.samples, 3);
+  assert.equal(r.usedTokens, 27);
 });
