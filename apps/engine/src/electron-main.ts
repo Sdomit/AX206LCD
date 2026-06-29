@@ -1,12 +1,28 @@
-// OrbitPanel tray shell. Electron only provides the tray + lifecycle; it spawns the
-// engine (dashboard-service) under system Node so node-usb keeps its Node ABI — no
-// electron-rebuild needed. Tray: start/stop/restart engine, start-at-login, quit.
-import { app, Tray, Menu, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
+// OrbitPanel shell. Provides a control window (run/pause/stop/restart + live status) and a
+// tray. The engine (dashboard-service) runs as a child under system Node so node-usb keeps
+// its Node ABI — no electron-rebuild needed. The child gets an IPC channel: the shell sends
+// pause/resume/status, the engine reports status back, which the shell relays to the window.
+import { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { CONTROL_HTML } from './control-ui';
 
 let tray: Tray | null = null;
+let win: BrowserWindow | null = null;
 let engine: ChildProcess | null = null;
+
+const STOPPED_STATUS = {
+  type: 'status',
+  alive: false,
+  paused: false,
+  device: 'NotDetected',
+  screen: null,
+  fps: 0,
+  rendered: 0,
+  skipped: 0,
+  failed: 0,
+};
 
 function trayIcon(): NativeImage {
   const s = 16;
@@ -27,11 +43,22 @@ function trayIcon(): NativeImage {
   return nativeImage.createFromBuffer(buf, { width: s, height: s });
 }
 
+function relay(status: unknown): void {
+  if (win && !win.isDestroyed()) win.webContents.send('status', status);
+}
+
 function startEngine(): void {
   if (engine) return;
-  engine = spawn('node', [join(__dirname, 'dashboard-service.js')], { stdio: 'inherit' });
+  // stdio: keep stdout/stderr inherited for logs, add a 4th 'ipc' channel for control.
+  engine = spawn('node', [join(__dirname, 'dashboard-service.js')], {
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+  });
+  engine.on('message', (m: { type?: string }) => {
+    if (m && m.type === 'status') relay(m);
+  });
   engine.on('exit', () => {
     engine = null;
+    relay(STOPPED_STATUS);
     refreshMenu();
   });
   refreshMenu();
@@ -41,7 +68,36 @@ function stopEngine(): void {
   if (!engine) return;
   engine.kill();
   engine = null;
+  relay(STOPPED_STATUS);
   refreshMenu();
+}
+
+function createWindow(): void {
+  if (win && !win.isDestroyed()) {
+    win.show();
+    win.focus();
+    return;
+  }
+  const htmlPath = join(app.getPath('temp'), 'orbitpanel-control.html');
+  writeFileSync(htmlPath, CONTROL_HTML);
+  win = new BrowserWindow({
+    width: 500,
+    height: 600,
+    minWidth: 420,
+    minHeight: 520,
+    title: 'OrbitPanel',
+    backgroundColor: '#0a0e1a',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  void win.loadFile(htmlPath);
+  win.on('closed', () => {
+    win = null;
+  });
 }
 
 function refreshMenu(): void {
@@ -51,6 +107,7 @@ function refreshMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     { label: `OrbitPanel — engine ${running ? 'running' : 'stopped'}`, enabled: false },
     { type: 'separator' },
+    { label: 'Control panel…', click: createWindow },
     running ? { label: 'Stop engine', click: stopEngine } : { label: 'Start engine', click: startEngine },
     { label: 'Restart engine', click: () => { stopEngine(); startEngine(); } },
     { type: 'separator' },
@@ -62,14 +119,33 @@ function refreshMenu(): void {
   tray.setToolTip(`OrbitPanel — engine ${running ? 'running' : 'stopped'}`);
 }
 
+// Control commands from the window.
+ipcMain.handle('run', () => {
+  if (!engine) startEngine();
+  else engine.send({ cmd: 'resume' });
+});
+ipcMain.handle('pause', () => engine?.send({ cmd: 'pause' }));
+ipcMain.handle('stop', () => stopEngine());
+ipcMain.handle('restart', () => {
+  stopEngine();
+  startEngine();
+});
+ipcMain.handle('requestStatus', () => {
+  if (engine) engine.send({ cmd: 'status' });
+  else relay(STOPPED_STATUS);
+});
+
 app.whenReady().then(() => {
+  app.setName('OrbitPanel');
   tray = new Tray(trayIcon());
+  createWindow();
   startEngine();
   refreshMenu();
   const ttl = process.env.ORBIT_TTL ? Number(process.env.ORBIT_TTL) : 0;
   if (ttl > 0) setTimeout(() => app.quit(), ttl * 1000); // smoke-test auto-exit
 });
 
+app.on('activate', () => createWindow()); // macOS dock / re-open
 app.on('window-all-closed', () => {
   // tray-only app: stay alive with no windows
 });
