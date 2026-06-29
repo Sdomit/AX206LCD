@@ -4,7 +4,7 @@
 import { COLORS, loadColor, type ColorName, type RGB } from './colors';
 import type { Surface } from './surface';
 import { drawText, drawTextCentered, drawTextRight, textWidth } from './text';
-import { strokeRect, bar, arcGauge } from './draw';
+import { panel, gradBar, vGradient, mix, arcGaugeGlow } from './draw';
 import { getMetric, formatMetric, fmtTokens, type Format, type RenderEnv, type AiLine } from './bindings';
 import type { Widget } from './schema';
 
@@ -14,8 +14,7 @@ const num = (v: unknown, d = 0): number => (typeof v === 'number' ? v : d);
 const fmtOf = (v: unknown, d: Format): Format => (typeof v === 'string' ? (v as Format) : d);
 
 function cardBg(s: Surface, x: number, y: number, w: number, h: number): void {
-  s.fillRect(x, y, w, h, COLORS.surf);
-  strokeRect(s, x, y, w, h, COLORS.stroke);
+  panel(s, x, y, w, h);
 }
 
 // Draw one AI provider's usage line: "<LABEL> <count> TOK" on the left, and on the right a
@@ -33,7 +32,7 @@ function aiLine(s: Surface, x: number, y: number, w: number, label: string, labe
   if (line.limit && line.limit > 0) {
     const frac = line.used / line.limit;
     const c = frac >= 0.9 ? COLORS.red : frac >= 0.7 ? COLORS.amber : COLORS.green;
-    bar(s, x + w - 184, y + 4, 130, 8, frac, COLORS.stroke, c);
+    gradBar(s, x + w - 184, y + 4, 130, 8, frac, COLORS.stroke, c, mix(c, COLORS.shadow, 0.5));
     drawTextRight(s, x + w, y, `${Math.round(frac * 100)}%`, 2, c);
   } else {
     drawTextRight(s, x + w, y + 3, 'SET LIMIT', 1, COLORS.t2);
@@ -79,7 +78,7 @@ export const WIDGETS: Record<string, WidgetDraw> = {
     const rOut = Math.min(wdg.w, wdg.h) / 2 - 6;
     const rIn = rOut - 16;
     if (p.label) drawTextCentered(s, cx, wdg.y, str(p.label), 2, COLORS.cyan);
-    arcGauge(s, cx, cy, rOut, rIn, v === null ? 0 : Math.max(0, Math.min(1, v / 100)), v === null ? COLORS.stroke : loadColor(v), COLORS.stroke);
+    arcGaugeGlow(s, cx, cy, rOut, rIn, v === null ? 0 : Math.max(0, Math.min(1, v / 100)), v === null ? COLORS.stroke : loadColor(v), COLORS.stroke, COLORS.bgBot);
     const big = v === null ? '--' : String(Math.round(v));
     drawTextCentered(s, cx, cy - 18, big, 5, COLORS.t1);
     if (v !== null) drawText(s, Math.round(cx + textWidth(big, 5) / 2 + 4), cy - 14, '%', 2, COLORS.t2);
@@ -111,7 +110,7 @@ export const WIDGETS: Record<string, WidgetDraw> = {
       const bm = getMetric(env.snapshot, str(p.barBinding));
       const frac = bm && bm.value !== null ? bm.value / num(p.barMax, 100) : null;
       const bcolor = p.barColorMode === 'load' && bm && bm.value !== null ? loadColor(bm.value) : col(p.barColor, COLORS.cyan);
-      bar(s, x + 12, y + wdg.h - 12, wdg.w - 24, 6, frac, COLORS.stroke, bcolor);
+      gradBar(s, x + 12, y + wdg.h - 12, wdg.w - 24, 6, frac, COLORS.stroke, bcolor, mix(bcolor, COLORS.shadow, 0.5));
     }
   },
 
@@ -119,7 +118,12 @@ export const WIDGETS: Record<string, WidgetDraw> = {
     const p = wdg.props;
     const m = getMetric(env.snapshot, str(p.binding));
     const frac = m && m.value !== null ? m.value / num(p.max, 100) : null;
-    bar(s, wdg.x, wdg.y, wdg.w, wdg.h, frac, COLORS.stroke, col(p.color, COLORS.cyan));
+    const c = col(p.color, COLORS.cyan);
+    gradBar(s, wdg.x, wdg.y, wdg.w, wdg.h, frac, COLORS.stroke, c, mix(c, COLORS.shadow, 0.5));
+  },
+
+  backdrop(s, wdg) {
+    vGradient(s, wdg.x, wdg.y, wdg.w, wdg.h, COLORS.bgTop, COLORS.bgBot);
   },
 
   aiUsage(s, wdg, env) {

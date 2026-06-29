@@ -13,6 +13,15 @@ export const COLORS = {
   red: [248, 113, 113],
   violet: [167, 139, 250],
   star: [43, 58, 99],
+  // Depth palette — vertical gradients + fake (no-alpha) shadows give cards and the
+  // backdrop a sense of layering. bgTop/Bot: screen backdrop. surfHi/Lo: card body
+  // top→bottom. shadow: drop-shadow base. hi: top-edge highlight line.
+  bgTop: [16, 22, 42],
+  bgBot: [6, 9, 18],
+  surfHi: [26, 38, 64],
+  surfLo: [14, 22, 40],
+  shadow: [3, 5, 12],
+  hi: [54, 72, 110],
 } as const satisfies Record<string, RGB>;
 
 export type ColorName = keyof typeof COLORS;

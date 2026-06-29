@@ -3,7 +3,7 @@
 // any field uniformly; each widget type interprets its own props (see widgets.ts).
 export const SCHEMA_VERSION = 1;
 
-export const WIDGET_TYPES = ['label', 'clock', 'arcGauge', 'statCard', 'progressBar', 'aiUsage', 'statusDot'] as const;
+export const WIDGET_TYPES = ['backdrop', 'label', 'clock', 'arcGauge', 'statCard', 'progressBar', 'aiUsage', 'statusDot'] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
 export interface Widget {

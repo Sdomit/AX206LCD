@@ -31,6 +31,8 @@ function newWidget(type: WidgetType): Widget {
   const id = (crypto.randomUUID?.() ?? `w${Date.now()}`).slice(0, 8);
   const base = { id, type, x: 24, y: 24, w: 120, h: 40 };
   switch (type) {
+    case 'backdrop':
+      return { ...base, x: 0, y: 0, w: 480, h: 320, props: {} };
     case 'label':
       return { ...base, w: 140, h: 16, props: { text: 'LABEL', scale: 2, color: 't1' } };
     case 'clock':
