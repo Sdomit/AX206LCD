@@ -133,13 +133,21 @@ function createWindow(): void {
     title: 'OrbitPanel',
     backgroundColor: '#0a0e1a',
     autoHideMenuBar: true,
+    show: false, // show on ready-to-show to avoid a white flash / invisible window
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
-  void win.loadFile(htmlPath);
+  win.once('ready-to-show', () => {
+    win?.show();
+    win?.focus();
+    console.log('[ui] control window shown');
+  });
+  win.webContents.on('did-fail-load', (_e, code, desc) => console.error(`[ui] window failed to load: ${code} ${desc}`));
+  void win.loadFile(htmlPath).catch((e) => console.error(`[ui] loadFile error: ${String(e)}`));
+  console.log(`[ui] control window created (${htmlPath})`);
   win.on('closed', () => {
     win = null;
   });
@@ -205,14 +213,27 @@ ipcMain.handle('relaunchAdmin', () => {
 
 app.whenReady().then(() => {
   app.setName('OrbitPanel');
-  settings = loadSettings();
-  tray = new Tray(trayIcon());
+  try {
+    settings = loadSettings();
+  } catch (e) {
+    console.error(`[settings] ${String(e)}`);
+  }
+  // Open the window FIRST so a tray or engine failure can never block the UI.
   createWindow();
-  startEngine();
-  refreshMenu();
+  try {
+    tray = new Tray(trayIcon());
+    refreshMenu();
+  } catch (e) {
+    console.error(`[tray] failed (continuing with window only): ${String(e)}`);
+  }
+  try {
+    startEngine();
+  } catch (e) {
+    console.error(`[engine] failed to start: ${String(e)}`);
+  }
   const ttl = process.env.ORBIT_TTL ? Number(process.env.ORBIT_TTL) : 0;
   if (ttl > 0) setTimeout(() => app.quit(), ttl * 1000); // smoke-test auto-exit
-});
+}).catch((e) => console.error(`[startup] ${String(e)}`));
 
 app.on('activate', () => createWindow()); // macOS dock / re-open
 app.on('window-all-closed', () => {
