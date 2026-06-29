@@ -68,3 +68,13 @@ test('aggregateCodex reads the real Codex token_count event shape', () => {
   assert.equal(r.usedTokens, 150); // sums per-response last_token_usage, NOT cumulative total
   assert.equal(r.usedPercent, 59); // latest reading wins (not the earlier 40)
 });
+
+test('aggregateCodex excludes cached input tokens from the count', () => {
+  const now = Date.parse('2026-06-28T12:00:00Z');
+  // total_tokens 100 but 94 are cached -> only 6 real tokens counted.
+  const line = JSON.stringify({
+    timestamp: '2026-06-28T11:30:00Z',
+    payload: { type: 'token_count', info: { last_token_usage: { total_tokens: 100, cached_input_tokens: 94 } } },
+  });
+  assert.equal(aggregateCodex([line], now, FIVE_HOURS_MS).usedTokens, 6);
+});
