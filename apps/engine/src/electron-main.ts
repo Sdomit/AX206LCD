@@ -2,11 +2,12 @@
 // tray. The engine (dashboard-service) runs as a child under system Node so node-usb keeps
 // its Node ABI — no electron-rebuild needed. The child gets an IPC channel: the shell sends
 // pause/resume/status, the engine reports status back, which the shell relays to the window.
-import { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
+import { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, shell, type MenuItemConstructorOptions, type NativeImage } from 'electron';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL_HTML } from './control-ui';
+import { configDir } from './config';
 
 // Run elevated by default so ProbeHost can read CPU temperature (LibreHardwareMonitor's ring0
 // driver needs admin). Covers every launch path — .bat, "Start at login", and `npm run tray` —
@@ -140,6 +141,8 @@ function refreshMenu(): void {
     { label: 'Control panel…', click: createWindow },
     running ? { label: 'Stop engine', click: stopEngine } : { label: 'Start engine', click: startEngine },
     { label: 'Restart engine', click: () => { stopEngine(); startEngine(); } },
+    { type: 'separator' },
+    { label: 'Open config folder', click: () => void shell.openPath(configDir()) }, // drop profile.json here
     { type: 'separator' },
     { label: 'Start at login', type: 'checkbox', checked: login, click: () => app.setLoginItemSettings({ openAtLogin: !login }) },
     { type: 'separator' },

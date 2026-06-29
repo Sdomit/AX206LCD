@@ -11,7 +11,7 @@
     "telemetry": "npm run build && node dist/telemetry-cli.js",
     "dashboard": "npm run build && node dist/dashboard-service.js",
     "tray": "npm run build && electron dist/electron-main.js",
-    "test": "npm run build && node --test dist/driver/ax206.test.js dist/scheduler.test.js dist/device/state-machine.test.js dist/telemetry/snapshot.test.js dist/telemetry/probehost.test.js dist/ai/usage.test.js dist/dashboard/dashboard.test.js dist/dashboard/quality.test.js"
+    "test": "npm run build && node --test dist/driver/ax206.test.js dist/scheduler.test.js dist/device/state-machine.test.js dist/telemetry/snapshot.test.js dist/telemetry/probehost.test.js dist/ai/usage.test.js dist/dashboard/dashboard.test.js dist/dashboard/quality.test.js dist/config.test.js"
   },
   "dependencies": {
     "usb": "^2.14.0"
