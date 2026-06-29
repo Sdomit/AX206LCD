@@ -1,0 +1,34 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0e1a; color: #e6edf7; }
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #111a2e; border-bottom: 1px solid #243150; flex-wrap: wrap; }
+.toolbar strong { color: #22d3ee; }
+.toolbar .name { background: #0a0e1a; color: #e6edf7; border: 1px solid #243150; border-radius: 6px; padding: 4px 8px; width: 160px; }
+.toolbar button, .toolbar .import { background: #1b2740; color: #e6edf7; border: 1px solid #243150; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+.toolbar button:hover, .toolbar .import:hover { background: #243150; }
+.toolbar .sim, .toolbar .limit { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #8595b5; margin-left: 6px; }
+.toolbar .limit input { width: 110px; background: #0a0e1a; color: #e6edf7; border: 1px solid #243150; border-radius: 6px; padding: 4px; }
+
+.body { display: flex; flex: 1; min-height: 0; }
+.palette, .inspector { width: 230px; padding: 12px; overflow: auto; background: #0d1424; border-right: 1px solid #243150; }
+.inspector { border-right: none; border-left: 1px solid #243150; }
+.palette h3, .inspector h3 { margin: 10px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #8595b5; }
+.palette button { display: block; width: 100%; text-align: left; margin: 3px 0; background: #1b2740; color: #e6edf7; border: 1px solid #243150; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.palette button:hover { background: #243150; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.list li:hover { background: #1b2740; }
+.list li.sel { background: #243150; outline: 1px solid #22d3ee; }
+.muted { color: #5b6a8a; font-size: 12px; }
+
+.stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #060912; }
+canvas { image-rendering: pixelated; border: 1px solid #243150; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
+
+.inspector .row { display: flex; justify-content: space-between; align-items: center; }
+.inspector .row button, .inspector > button { background: #2a1320; color: #f87171; border: 1px solid #4a2030; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.inspector > button { background: #14233a; color: #22d3ee; border-color: #243150; margin-top: 6px; }
+.geo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+.geo label, .props { display: flex; flex-direction: column; font-size: 12px; color: #8595b5; gap: 3px; }
+.geo input, .props textarea { background: #0a0e1a; color: #e6edf7; border: 1px solid #243150; border-radius: 6px; padding: 5px; font-family: ui-monospace, Consolas, monospace; }
+.err { color: #f87171; font-size: 12px; }
