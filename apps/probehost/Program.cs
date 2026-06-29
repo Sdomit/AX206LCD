@@ -41,6 +41,13 @@ static object Metric(float? value, string unit) => new
 // elevation). Treat <= 0 as unavailable (null), never a fake zero.
 static float? PosTemp(float? v) => v is > 0f ? v : null;
 
+// CPU temp needs a ring0 driver (elevation); GPU temp does not. If we never see a CPU temp,
+// say why once so the panel's "-- °C" isn't a mystery. Engine/CLI surface our stderr.
+// Sensors can read null/0 for the first cycle or two before the driver populates them, so
+// only warn after the null is clearly sustained (a few cycles).
+var warnedCpuTemp = false;
+var cpuTempNullCycles = 0;
+
 while (true)
 {
     foreach (var hw in computer.Hardware)
@@ -108,6 +115,25 @@ while (true)
                     else if (s.SensorType == SensorType.Throughput && s.Name == "Upload Speed") netUp = (netUp ?? 0) + (s.Value ?? 0);
                 }
                 break;
+        }
+    }
+
+    if (!warnedCpuTemp)
+    {
+        if (PosTemp(cpuTemp ?? cpuTempAny) is null)
+        {
+            if (++cpuTempNullCycles >= 3)
+            {
+                warnedCpuTemp = true;
+                Console.Error.WriteLine(
+                    "CPU temperature unavailable after several reads — no CPU temp sensor is exposed. " +
+                    "Usually this means OrbitPanel needs to run as administrator (CPU temp needs a ring0 driver); " +
+                    "some CPUs/boards expose no temp sensor at all. GPU temp does not require elevation.");
+            }
+        }
+        else
+        {
+            cpuTempNullCycles = 0;
         }
     }
 

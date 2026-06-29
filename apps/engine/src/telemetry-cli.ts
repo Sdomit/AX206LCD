@@ -1,13 +1,14 @@
 // Prints live telemetry from the ProbeHost child — proves the data pipeline end to end.
 // Usage: npm run telemetry [-- --seconds=N]   (build apps/probehost first)
 import { ProbeHost } from './telemetry/probehost';
+import { fmtRate } from './dashboard/bindings';
 import type { Metric } from './telemetry/snapshot';
 
 function v(m: Metric<number>): string {
   return m.value === null ? `—(${m.quality})` : `${m.value}${m.unit ?? ''}`;
 }
-function mb(m: Metric<number>): string {
-  return m.value === null ? '—' : `${(m.value / 1e6).toFixed(1)}MB/s`;
+function rate(m: Metric<number>): string {
+  return m.value === null ? '—' : `${fmtRate(m.value)}B/s`;
 }
 
 function main(): void {
@@ -15,7 +16,7 @@ function main(): void {
   ph.on('snapshot', (s) => {
     console.log(
       `cpu ${v(s.cpu.loadPercent)} ${v(s.cpu.tempC)} | gpu ${v(s.gpu.loadPercent)} ${v(s.gpu.tempC)} | ` +
-        `mem ${v(s.memory.loadPercent)} | disk ${v(s.storage.tempC)} | net ↓${mb(s.network.downBps)} ↑${mb(s.network.upBps)}`,
+        `mem ${v(s.memory.loadPercent)} | disk ${v(s.storage.tempC)} | net ↓${rate(s.network.downBps)} ↑${rate(s.network.upBps)}`,
     );
   });
   ph.on('stderr', (d: string) => process.stderr.write(`[probehost] ${d}`));
