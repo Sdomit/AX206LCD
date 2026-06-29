@@ -25,13 +25,15 @@ export interface CodexUsage {
 }
 
 // Pull a token count out of an OpenAI-style usage object, tolerant of field naming.
-// Returns null if the object has no recognizable token fields.
+// Excludes cached input (cache hits, ~0 cost) — for Codex that's ~94% of the raw total, so
+// counting it makes the displayed number ~15x too high. Returns null if no recognizable fields.
 function tokensFromUsage(u: Record<string, unknown> | undefined): number | null {
   if (!u || typeof u !== 'object') return null;
   const n = (k: string): number => (typeof u[k] === 'number' ? (u[k] as number) : 0);
-  if (typeof u.total_tokens === 'number') return u.total_tokens;
+  const cached = n('cached_input_tokens') + n('cache_read_input_tokens');
+  if (typeof u.total_tokens === 'number') return Math.max(0, u.total_tokens - cached);
   const inOut = n('input_tokens') + n('output_tokens');
-  if (inOut > 0) return inOut;
+  if (inOut > 0) return Math.max(0, inOut - cached);
   const promptCompletion = n('prompt_tokens') + n('completion_tokens');
   if (promptCompletion > 0) return promptCompletion;
   return null;

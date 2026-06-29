@@ -15,9 +15,10 @@ if %errorlevel% neq 0 (
   if errorlevel 1 (echo Elevation declined - continuing without CPU temperature.) else (exit /b)
 )
 
-REM Claude usage bar uses a default 5h cap of 88M billable tokens. To match your plan
-REM exactly, uncomment and set your number (Codex auto-detects its own % — no setting needed):
-REM set "CLAUDE_5H_TOKEN_LIMIT=88000000"
+REM Claude usage bar: 5h billable-token cap, calibrated so the panel matches Claude /usage
+REM (calibrated at 22.7M billable = 27%). Codex auto-detects its own % — no setting needed.
+REM Re-calibrate anytime: cap = current_billable_tokens / (claude_usage_percent / 100).
+set "CLAUDE_5H_TOKEN_LIMIT=84000000"
 
 if not exist "node_modules" (
   echo First run - installing dependencies...
