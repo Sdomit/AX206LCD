@@ -3,14 +3,20 @@
 // its Node ABI — no electron-rebuild needed. The child gets an IPC channel: the shell sends
 // pause/resume/status, the engine reports status back, which the shell relays to the window.
 import { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, type MenuItemConstructorOptions, type NativeImage } from 'electron';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { spawn, execSync, type ChildProcess } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONTROL_HTML } from './control-ui';
+
+interface Settings {
+  claudeLimit: number | null;
+  codexLimit: number | null;
+}
 
 let tray: Tray | null = null;
 let win: BrowserWindow | null = null;
 let engine: ChildProcess | null = null;
+let settings: Settings = { claudeLimit: null, codexLimit: null };
 
 const STOPPED_STATUS = {
   type: 'status',
@@ -23,6 +29,39 @@ const STOPPED_STATUS = {
   skipped: 0,
   failed: 0,
 };
+
+const numOrNull = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+
+// On Windows, CPU temp needs elevation. `net session` succeeds only when elevated.
+function detectElevated(): boolean {
+  if (process.platform !== 'win32') return true;
+  try {
+    execSync('net session', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const ELEVATED = detectElevated();
+
+function settingsPath(): string {
+  return join(app.getPath('userData'), 'settings.json'); // %APPDATA%\OrbitPanel\settings.json
+}
+function loadSettings(): Settings {
+  try {
+    const o = JSON.parse(readFileSync(settingsPath(), 'utf8'));
+    return { claudeLimit: numOrNull(o.claudeLimit), codexLimit: numOrNull(o.codexLimit) };
+  } catch {
+    return { claudeLimit: null, codexLimit: null };
+  }
+}
+function saveSettings(s: Settings): void {
+  try {
+    writeFileSync(settingsPath(), JSON.stringify(s, null, 2));
+  } catch {
+    // best effort
+  }
+}
 
 function trayIcon(): NativeImage {
   const s = 16;
@@ -43,15 +82,21 @@ function trayIcon(): NativeImage {
   return nativeImage.createFromBuffer(buf, { width: s, height: s });
 }
 
-function relay(status: unknown): void {
-  if (win && !win.isDestroyed()) win.webContents.send('status', status);
+function relay(status: Record<string, unknown>): void {
+  if (win && !win.isDestroyed()) win.webContents.send('status', { ...status, elevated: ELEVATED });
 }
 
 function startEngine(): void {
   if (engine) return;
+  // Pass the configured token limits to the engine via env so the progress bars render.
+  // Settings take precedence; an externally-set env var still works when no setting exists.
+  const env = { ...process.env };
+  if (settings.claudeLimit) env.CLAUDE_5H_TOKEN_LIMIT = String(settings.claudeLimit);
+  if (settings.codexLimit) env.CODEX_TOKEN_LIMIT = String(settings.codexLimit);
   // stdio: keep stdout/stderr inherited for logs, add a 4th 'ipc' channel for control.
   engine = spawn('node', [join(__dirname, 'dashboard-service.js')], {
     stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    env,
   });
   engine.on('message', (m: { type?: string }) => {
     if (m && m.type === 'status') relay(m);
@@ -134,9 +179,33 @@ ipcMain.handle('requestStatus', () => {
   if (engine) engine.send({ cmd: 'status' });
   else relay(STOPPED_STATUS);
 });
+ipcMain.handle('getSettings', () => settings);
+ipcMain.handle('setSettings', (_e, s: Partial<Settings>) => {
+  settings = { claudeLimit: numOrNull(s?.claudeLimit), codexLimit: numOrNull(s?.codexLimit) };
+  saveSettings(settings);
+  if (engine) {
+    stopEngine();
+    startEngine();
+  } else {
+    relay(STOPPED_STATUS);
+  }
+});
+ipcMain.handle('relaunchAdmin', () => {
+  if (process.platform !== 'win32') return;
+  try {
+    const quote = (a: string): string => `'${a.replace(/'/g, "''")}'`;
+    const argList = process.argv.slice(1).map(quote).join(',');
+    const cmd = `Start-Process -FilePath ${quote(process.execPath)} -Verb RunAs` + (argList ? ` -ArgumentList ${argList}` : '');
+    spawn('powershell', ['-NoProfile', '-Command', cmd], { detached: true, stdio: 'ignore' }).unref();
+    app.quit();
+  } catch {
+    // if elevation is declined, stay running unelevated
+  }
+});
 
 app.whenReady().then(() => {
   app.setName('OrbitPanel');
+  settings = loadSettings();
   tray = new Tray(trayIcon());
   createWindow();
   startEngine();

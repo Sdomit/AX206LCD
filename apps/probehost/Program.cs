@@ -12,6 +12,9 @@ var computer = new Computer
     IsMemoryEnabled = true,
     IsStorageEnabled = true,
     IsNetworkEnabled = true,
+    // Many boards expose CPU temperature only via the motherboard Super I/O chip
+    // (under SubHardware), not under HardwareType.Cpu — enable it as a fallback source.
+    IsMotherboardEnabled = true,
 };
 computer.Open();
 
@@ -53,9 +56,10 @@ while (true)
     foreach (var hw in computer.Hardware)
     {
         hw.Update();
+        foreach (var sub in hw.SubHardware) sub.Update(); // Super I/O temps live under SubHardware
     }
 
-    float? cpuTemp = null, cpuTempAny = null, cpuLoad = null;
+    float? cpuTemp = null, cpuTempAny = null, cpuTempBoard = null, cpuLoad = null;
     float? gpuTemp = null, gpuTempAny = null, gpuLoad = null;
     float? memUsedGb = null, memAvailGb = null, memLoad = null;
     float? diskTemp = null, diskUsedPct = null;
@@ -115,12 +119,25 @@ while (true)
                     else if (s.SensorType == SensorType.Throughput && s.Name == "Upload Speed") netUp = (netUp ?? 0) + (s.Value ?? 0);
                 }
                 break;
+
+            case HardwareType.Motherboard:
+                // Super I/O temperatures are nested under SubHardware. Take a sensor that
+                // clearly names the CPU as a fallback; never grab an arbitrary board temp.
+                foreach (var sub in hw.SubHardware)
+                {
+                    foreach (var s in sub.Sensors)
+                    {
+                        if (s.SensorType == SensorType.Temperature && s.Value is > 0f && s.Name.Contains("CPU"))
+                            cpuTempBoard ??= s.Value;
+                    }
+                }
+                break;
         }
     }
 
     if (!warnedCpuTemp)
     {
-        if (PosTemp(cpuTemp ?? cpuTempAny) is null)
+        if (PosTemp(cpuTemp ?? cpuTempAny ?? cpuTempBoard) is null)
         {
             if (++cpuTempNullCycles >= 3)
             {
@@ -143,7 +160,7 @@ while (true)
     {
         schemaVersion = 2,
         generatedAt = DateTime.UtcNow.ToString("o"),
-        cpu = new { tempC = Metric(PosTemp(cpuTemp ?? cpuTempAny), "C"), loadPercent = Metric(cpuLoad, "%") },
+        cpu = new { tempC = Metric(PosTemp(cpuTemp ?? cpuTempAny ?? cpuTempBoard), "C"), loadPercent = Metric(cpuLoad, "%") },
         gpu = new { tempC = Metric(PosTemp(gpuTemp ?? gpuTempAny), "C"), loadPercent = Metric(gpuLoad, "%") },
         memory = new
         {

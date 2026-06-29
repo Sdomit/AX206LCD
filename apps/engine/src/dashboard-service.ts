@@ -143,6 +143,7 @@ function main(): void {
       rendered: sched.rendered,
       skipped: sched.skipped,
       failed: sched.failed,
+      ai: { claude, codex }, // expose usage + limit so the control window can show/diagnose it
     });
   }
   process.on('message', (m: { cmd?: string }) => {
