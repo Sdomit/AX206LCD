@@ -39,6 +39,13 @@ if (process.platform === 'win32' && !process.argv.includes('--elevated') && !isA
   process.exit(0);
 }
 
+// Single instance: a second launch (re-running the .bat, login + manual, a leftover orphan)
+// must not start a rival engine fighting over the one USB panel — that contention leaves the
+// panel frozen on a stale frame. Exit and let the running instance keep the device.
+if (!app.requestSingleInstanceLock()) {
+  process.exit(0);
+}
+
 let tray: Tray | null = null;
 let win: BrowserWindow | null = null;
 let engine: ChildProcess | null = null;
@@ -144,7 +151,7 @@ function refreshMenu(): void {
     { type: 'separator' },
     { label: 'Open config folder', click: () => void shell.openPath(configDir()) }, // drop profile.json here
     { type: 'separator' },
-    { label: 'Start at login', type: 'checkbox', checked: login, click: () => app.setLoginItemSettings({ openAtLogin: !login }) },
+    { label: 'Start at login', type: 'checkbox', checked: login, click: () => app.setLoginItemSettings({ openAtLogin: !login, path: process.execPath, args: [join(__dirname, 'electron-main.js')] }) },
     { type: 'separator' },
     { label: 'Quit OrbitPanel', click: () => app.quit() },
   ];
@@ -178,6 +185,7 @@ app.whenReady().then(() => {
   if (ttl > 0) setTimeout(() => app.quit(), ttl * 1000); // smoke-test auto-exit
 });
 
+app.on('second-instance', () => createWindow()); // a blocked second launch pokes us — show the window
 app.on('activate', () => createWindow()); // macOS dock / re-open
 app.on('window-all-closed', () => {
   // tray-only app: stay alive with no windows
