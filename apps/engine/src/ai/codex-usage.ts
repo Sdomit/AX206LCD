@@ -9,7 +9,7 @@
 // unavailable (never a fake zero). The exact on-disk Codex format may vary by CLI version;
 // the parser below is tolerant of the common OpenAI usage shapes and degrades to unavailable
 // rather than guessing.
-import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -127,7 +127,10 @@ export function readCodexUsage(
 
   const files = recentJsonl(base, nowMs - windowMs);
   if (files.length === 0) {
-    return { available: false, usedTokens: 0, limit, windowMs, samples: 0, state: 'source not configured' };
+    // No recent sessions. Distinguish "Codex never set up here" from "set up but idle >5h" —
+    // the latter is honest unavailable, not a misconfiguration.
+    const state = existsSync(base) ? 'no recent activity' : 'source not configured';
+    return { available: false, usedTokens: 0, limit, windowMs, samples: 0, state };
   }
 
   let usedTokens = 0;
